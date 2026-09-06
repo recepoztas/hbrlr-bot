@@ -27,8 +27,7 @@ RSS_FEEDS = [
     {"url": "https://www.bloomberght.com/rss", "kategori": "Ekonomi"},
 
     # Teknoloji
-    {"url": "https://www.donanimhaber.com/rss/tum/
-", "kategori": "Teknoloji"}
+    {"url": "https://www.donanimhaber.com/rss/tum/", "kategori": "Teknoloji"}
 ]
 
 DEFAULT_IMAGE = "https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=800"
@@ -46,7 +45,7 @@ def haberi_islemden_gecir(metin, orijinal_baslik, kategori):
     """
     Bu fonksiyon yapay zekayı kullanarak:
     1. İnsanlarda merak uyandıracak kısa bir başlık üretir.
-    2. Tıklayınca görünen, haberin net ve bilgilendirici özeti üretir.
+    2. Tıklayınca görünen, haberin ultra kısa (3-4 kelime) özetini üretir.
     """
     prompt = f"""
     Sen minimalist bir haber platformu için {kategori} kategorisinde editörlük yapıyorsun.
@@ -57,8 +56,8 @@ def haberi_islemden_gecir(metin, orijinal_baslik, kategori):
 
     GÖREV 2 - DETAY ÖZETİ:
     - Tıklanınca görünecek olan net cevabı/özeti yaz.
-    - Başlığı aynen tekrarlama. "Maç bitti", "Transfer oldu", "Trafik kazası" gibi jenerik laflar etme.
-    - Haberin en önemli detayını, skorunu, sonucunu veya cevabını ver (Maksimum 3-4 kelime).
+    - Başlığı aynen tekrarlama. "Trafik kazası", "Orman yangını" gibi jenerik laflar etme.
+    - Haberin en önemli detayını, skorunu veya net sonucunu ver (Maksimum 3-4 kelime).
 
     ÇIKTI FORMATI:
     Çıktıyı aynen şu formatta ver, araya başka açıklama ekleme:
