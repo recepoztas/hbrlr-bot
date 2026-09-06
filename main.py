@@ -1,5 +1,6 @@
 
 import os
+import time
 import requests
 import feedparser
 from google import genai
@@ -64,8 +65,9 @@ def haberi_islemden_gecir(metin, orijinal_baslik, kategori):
     Haber İçeriği: {metin}
     """
     try:
+        # Güncel ve hızlı model: gemini-3.5-flash-lite
         response = client.models.generate_content(
-            model='gemini-3.6-flash',
+            model='gemini-3.5-flash-lite',
             contents=prompt
         )
         cikti = response.text.strip()
@@ -113,6 +115,9 @@ def main():
                     }
                     supabase.table("haberler").insert(data).execute()
                     print(f"Eklendi ({kategori}):\n  Başlık: {yeni_baslik}\n  Özet: {ozet}\n")
+                    
+                    # API dakikalık kotalarına takılmamak için her haber arasında 3 saniye bekle
+                    time.sleep(3)
 
 if __name__ == "__main__":
     main()
