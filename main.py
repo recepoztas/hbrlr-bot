@@ -4,7 +4,6 @@ import feedparser
 from google import genai
 from supabase import create_client, Client
 
-# Ortam değişkenleri
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
@@ -12,7 +11,6 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-# RSS haber kaynakları
 RSS_FEEDS = [
     "https://www.trthaber.com/sondakika_articles.rss",
     "https://www.cnnturk.com/feed/rss/all/news"
