@@ -7,6 +7,7 @@ from google import genai
 from google.genai import types
 from supabase import create_client, Client
 
+# Ortam değişkenleri
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
@@ -36,40 +37,29 @@ def resim_url_al(entry):
 
 def haberi_islemden_gecir(metin, orijinal_baslik, kategori):
     prompt = f"""
-    Sen mikro-haber formatında yayın yapan ultra minimalist bir editörsün.
-    Görevin: Her haberi doğal bir "Soru - Kestirme Cevap" ikilisine dönüştürmek.
+    Sen minimalist ve doğal bir dille haber özetleyen anti-clickbait editörüsün.
 
-    TEMEL FORMAT ŞARTLARI:
-    1. BAŞLIK:
-       - Haberi okuyucunun merak edeceği DOĞAL bir soru cümlesine çevir.
-       - Asla zorlama "Evet/Hayır" gerektiren yapay sorular sorma. 
-       - "Ne dedi?", "Soru ne oldu?", "Kime ne oldu?", "Saat kaçta?", "Açıklandı mı?" gibi sorular kullan.
+    ÖNEMLİ KURAL 1 - BAĞLAMSAL VE DOĞAL BAŞLIKLAR:
+    - Soruları okuyucunun konuyu anlayacağı DOĞAL ve BAĞLAMSAL bir dille sor.
+    - YANLIŞ: "Onuachu maça devam edebildi mi?" (Bağlam yok, yapay duruyor)
+    - DOĞRU: "Onuachu sakatlandı mı?" veya "Onuachu'nun sağlık durumu nasıl?"
+    - YANLIŞ: "Halkbank bu kaynağı nereden buldu?"
+    - DOĞRU: "Halkbank yeni kaynağı nereden sağladı?"
 
-    2. ÖZET (ÇOK ÖNEMLİ):
-       - Soruya verilecek cevabı MÜMKÜN OLAN EN KISA ŞEKİLDE yaz.
-       - Cevap KESİNLİKLE 2-4 KELİMEYİ GEÇEMEZ!
-       - Yanına bağlaç, açıklama, ek cümle ASLA ekleme.
+    ÖNEMLİ KURAL 2 - ÖZET FORMATI (2-4 KELİME):
+    - Özet, başlığa verilen Ultra Net, Doğrudan ve Anlaşılır bir cevap olmalıdır.
+    - Tek başına "Evet", "Hayır" gibi yetersiz yanıtlar Verme. Durumu 2-4 kelimeyle anlat.
+    - Örnek: Başlık: "Onuachu sakatlandı mı?" -> Özet: "Sakatlanıp oyundan çıktı."
+    - Örnek: Başlık: "Erdoğan Filenin Sultanlarına ne dedi?" -> Özet: "Telefonla arayıp tebrik etti."
+    - Örnek: Başlık: "Daha 17'de Aras kardeşini bulabildi mi?" -> Özet: "Henüz değil."
 
-    ÖRNEKLER:
-    - Orijinal: "Cumhurbaşkanı Erdoğan Filenin Sultanlarını aradı."
-      * baslik: "Erdoğan Filenin Sultanlarına ne dedi?"
-      * ozet: "Tebrik etti."
+    ÖNEMLİ KURAL 3 - BOŞ / BOZUK İÇERİK ENGELİ:
+    - Eğer haber içeriğinde anlamsız kelimeler, bozuk karakterler veya saçma ifadeler varsa:
+      ozet alanına SADECE "YETERSIZ" yaz.
 
-    - Orijinal: "Daha 17 dizisinde Aras kardeşini arıyor."
-      * baslik: "Aras kardeşini bulabildi mi?"
-      * ozet: "Henüz değil."
-
-    - Orijinal: "Trabzonspor Gençlerbirliği ile karşılaşacak."
-      * baslik: "Trabzonspor maçı ne zaman, hangi kanalda?"
-      * ozet: "Bugün 20:00 | TRT Spor"
-
-    - Orijinal: "Merkez Bankası faiz kararını açıkladı."
-      * baslik: "Merkez Bankası faizi ne yaptı?"
-      * ozet: "Sabit tuttu."
-
-    - Orijinal: "Asgari ücrete ara zam yapıldı."
-      * baslik: "Asgari ücrete ne kadar zam geldi?"
-      * ozet: "%30 zam yapıldı."
+    YASAKLAR:
+    - "Nereden öğrenilir", "Nasıl bakılır" gibi tık tuzağı arama soruları sorma.
+    - "Arayış sürüyor", "Detaylar netleşiyor" gibi dolgu cümleleri kullanma.
 
     Haber Başlığı: {orijinal_baslik}
     Haber İçeriği: {metin}
@@ -110,31 +100,37 @@ def main():
             link = entry.link
             resim_url = resim_url_al(entry)
             
-            # 1. Link Kontrolü
+            # 1. Birebir Link Kontrolü
             check_link = supabase.table("haberler").select("id").eq("link", link).execute()
             if len(check_link.data) > 0:
                 continue
 
-            # 2. Mükerrer Haber Kontrolü (Aynı haberin tekrar girmesini önler)
-            kisa_baslik = orijinal_baslik[:18]
-            check_title = supabase.table("haberler").select("id").ilike("baslik", f"%{kisa_baslik}%").execute()
-            if len(check_title.data) > 0:
-                continue
-
+            # 2. AI İşlemi
             yeni_baslik, ozet = haberi_islemden_gecir(entry.get("summary", orijinal_baslik), orijinal_baslik, kategori)
             
-            if ozet:
-                data = {
-                    "baslik": yeni_baslik,
-                    "ozet": ozet,
-                    "link": link,
-                    "resim_url": resim_url,
-                    "kategori": kategori
-                }
-                supabase.table("haberler").insert(data).execute()
-                print(f"Eklendi ({kategori}):\n  Başlık: {yeni_baslik}\n  Özet: {ozet}\n")
+            # İçerik yetersizse doğrudan atla
+            if not ozet or ozet == "YETERSIZ" or len(ozet) <= 2:
+                print(f"Atlandı (Bozuk/Yetersiz İçerik): {orijinal_baslik}")
+                continue
+
+            # 3. AI Başlığı Üzerinden Mükerrer Kontrolü (Farklı kaynaklardan gelen aynı haberleri kesin engeller)
+            check_title = supabase.table("haberler").select("id").ilike("baslik", f"%{yeni_baslik}%").execute()
+            if len(check_title.data) > 0:
+                print(f"Tekrar Eden Haber Atlandı: {yeni_baslik}")
+                continue
+
+            # Veritabanına Ekleme
+            data = {
+                "baslik": yeni_baslik,
+                "ozet": ozet,
+                "link": link,
+                "resim_url": resim_url,
+                "kategori": kategori
+            }
+            supabase.table("haberler").insert(data).execute()
+            print(f"Eklendi ({kategori}):\n  Başlık: {yeni_baslik}\n  Özet: {ozet}\n")
                 
-                time.sleep(2)
+            time.sleep(2)
 
 if __name__ == "__main__":
     main()
