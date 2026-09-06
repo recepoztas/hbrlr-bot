@@ -1,4 +1,3 @@
-
 import os
 import time
 import requests
@@ -46,26 +45,26 @@ def resim_url_al(entry):
 def haberi_islemden_gecir(metin, orijinal_baslik, kategori):
     prompt = f"""
     Sen minimalist bir haber platformu için {kategori} kategorisinde editörlük yapıyorsun.
-    Sana verilen haber başlığını ve haber içeriğini dikkatlice incele.
+    Aşağıdaki haberi incele.
 
-    DURUM A: Eğer haber net bir karara, gelişmeye veya iddiaya dayanıyorsa (zam, indirim, sakatlık, iptal, ceza, erteleme gibi) ve cevabı kesinlikle "Evet" veya "Hayır" olabiliyorsa:
-    - BAŞLIK: Cevabı Evet/Hayır olan bir soru cümlesi yaz (-mı, -mi, geldi mi, ertelendi mi vb.).
-    - ÖZET: SADECE tek kelime yaz: "Evet" ya da "Hayır" (yanına hiçbir ekstra kelime veya nokta ekleme).
+    GENEL KURAL (Haberlerin %80-90'ı için):
+    - BAŞLIK: İlgi çekici, merak uyandıran, modern ve kısa bir başlık at (4-7 kelime). Zorlama sorular sorma.
+    - ÖZET: Haberin en kritik sonucunu veya detayını veren ultra kısa bir özet yaz (Maksimum 3-4 kelime).
 
-    DURUM B: Eğer haber bir röportaj, genel durum veya Evet/Hayır cevabına uygun olmayan bir gelişmeyse (zorlama yapma):
-    - BAŞLIK: İnsanlarda merak uyandıracak net ve kısa bir başlık yaz (Maksimum 6-8 kelime).
-    - ÖZET: Haberin en kritik sonucunu veya detayını veren 3-4 kelimelik net bilgi yaz.
+    İSTİSNA KURAL (Sadece tam uyan eğlenceli/spesifik haberlerde - Çok nadir kullan):
+    - Eğer haber çok net bir Evet/Hayır merakı doğuruyorsa (Örn: "Maaşlara zam geldi mi?", "Derbi ertelendi mi?"):
+      * BAŞLIK: Net bir soru cümlesi yap.
+      * ÖZET: Sadece "Evet" ya da "Hayır" yaz.
 
     ÇIKTI FORMATI:
-    Aynen şu formatta ver, araya başka hiçbir açıklama veya metin ekleme:
-    BAŞLIK: [Buraya başlığı yaz]
-    ÖZET: [Buraya özeti yaz]
+    Aynen şu formatta ver, ekstra açıklama ekleme:
+    BAŞLIK: [Başlık]
+    ÖZET: [Özet]
 
     Haber Başlığı: {orijinal_baslik}
     Haber İçeriği: {metin}
     """
     try:
-        # Güncel ve hızlı model: gemini-3.5-flash-lite
         response = client.models.generate_content(
             model='gemini-3.5-flash-lite',
             contents=prompt
@@ -116,7 +115,6 @@ def main():
                     supabase.table("haberler").insert(data).execute()
                     print(f"Eklendi ({kategori}):\n  Başlık: {yeni_baslik}\n  Özet: {ozet}\n")
                     
-                    # API dakikalık kotalarına takılmamak için her haber arasında 3 saniye bekle
                     time.sleep(3)
 
 if __name__ == "__main__":
