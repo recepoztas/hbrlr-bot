@@ -43,35 +43,29 @@ def resim_url_al(entry):
     return DEFAULT_IMAGE
 
 def haberi_islemden_gecir(metin, orijinal_baslik, kategori):
-    """
-    Bu fonksiyon haberi analiz eder:
-    - Uygunsa Evet/Hayır sorusu üretir.
-    - Değilse merak uyandıran kısa dinamik başlık üretir.
-    - Özet her zaman 3-4 kelimelik net yanıt içerir.
-    """
     prompt = f"""
-    Sen minimalist ve modern bir haber platformu için editörlük yapıyorsun.
-    Aşağıda sana verilen haber başlığını ve içeriğini incele.
+    Sen minimalist bir haber platformu için {kategori} kategorisinde editörlük yapıyorsun.
+    Sana verilen haber başlığını ve haber içeriğini dikkatlice incele.
 
-    GÖREV 1 - BAŞLIK OLUŞTURMA:
-    - Haberi analiz et. Eğer haber net bir karara, gelişmeye veya iddiaya dayanıyorsa (örneğin zam, ceza, transfer, iptal, erteleme gibi) başlığı "Evet/Hayır" ile yanıtlanabilecek bir SORU CÜMLESİ yap (Örn: "Osimhen maça yetişebilecek mi?", "Akaryakıta zam geldi mi?").
-    - Eğer haber bir durum, röportaj veya soruya uymayan genel bir gelişmeyse zorlama; bunun yerine merak uyandıran, kısa ve dikkat çekici vurucu bir başlık yaz (Maksimum 6-8 kelime).
+    DURUM A: Eğer haber net bir karara, gelişmeye veya iddiaya dayanıyorsa (zam, indirim, sakatlık, iptal, ceza, erteleme gibi) ve cevabı kesinlikle "Evet" veya "Hayır" olabiliyorsa:
+    - BAŞLIK: Cevabı Evet/Hayır olan bir soru cümlesi yaz (-mı, -mi, geldi mi, ertelendi mi vb.).
+    - ÖZET: SADECE tek kelime yaz: "Evet" ya da "Hayır" (yanına hiçbir ekstra kelime veya nokta ekleme).
 
-    GÖREV 2 - DETAY ÖZETİ:
-    - Soru başlıkları için: İlk kelimen "Evet" veya "Hayır" olsun, ardından 2-3 kelimelik net sonucu ekle (Örn: "Evet, 2 hafta yok.", "Hayır, fiyatlar sabit.").
-    - Genel başlıklar için: Haberin en kritik detayını, sonucunu veya skorunu veren 3-4 kelimelik net bilgi yaz.
+    DURUM B: Eğer haber bir röportaj, genel durum veya Evet/Hayır cevabına uygun olmayan bir gelişmeyse (zorlama yapma):
+    - BAŞLIK: İnsanlarda merak uyandıracak net ve kısa bir başlık yaz (Maksimum 6-8 kelime).
+    - ÖZET: Haberin en kritik sonucunu veya detayını veren 3-4 kelimelik net bilgi yaz.
 
     ÇIKTI FORMATI:
-    Aynen şu formatta ver, araya başka hiçbir açıklama ekleme:
-    BAŞLIK: [Başlık]
-    ÖZET: [Özet]
+    Aynen şu formatta ver, araya başka hiçbir açıklama veya metin ekleme:
+    BAŞLIK: [Buraya başlığı yaz]
+    ÖZET: [Buraya özeti yaz]
 
     Haber Başlığı: {orijinal_baslik}
     Haber İçeriği: {metin}
     """
     try:
         response = client.models.generate_content(
-            model='gemini-3.6-flash',
+            model='gemini-2.5-flash',
             contents=prompt
         )
         cikti = response.text.strip()
@@ -79,7 +73,6 @@ def haberi_islemden_gecir(metin, orijinal_baslik, kategori):
         yeni_baslik = orijinal_baslik
         ozet = ""
 
-        # Yapay zeka çıktısını ayrıştırma
         for satir in cikti.split("\n"):
             if satir.startswith("BAŞLIK:"):
                 yeni_baslik = satir.replace("BAŞLIK:", "").strip()
