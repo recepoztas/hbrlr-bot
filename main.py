@@ -41,9 +41,8 @@ def haberi_ozetle(metin, baslik):
     Sadece cevabı yaz:
     """
     try:
-        # Yeni SDK'da 'models/' takısı ile tam model yolunu belirtiyoruz
         response = client.models.generate_content(
-            model='models/gemini-1.5-flash',
+            model='gemini-2.0-flash',
             contents=prompt
         )
         return response.text.strip()
