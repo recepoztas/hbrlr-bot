@@ -1,0 +1,30 @@
+name: Haber Botu Otomasyonu
+
+on:
+  schedule:
+    - cron: '*/30 * * * *' # Her 30 dakikada bir otomatik çalışır
+  workflow_dispatch: # Elle çalıştırma butonu
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kodları Çek
+        uses: actions/checkout@v3
+
+      - name: Python Kur
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Kütüphaneleri Yükle
+        run: |
+          pip install requests feedparser google-generativeai supabase
+
+      - name: Botu Çalıştır
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python main.py
+
