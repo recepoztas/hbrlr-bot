@@ -65,7 +65,7 @@ def haberi_islemden_gecir(metin, orijinal_baslik, kategori):
     """
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-3.6-flash',
             contents=prompt
         )
         cikti = response.text.strip()
