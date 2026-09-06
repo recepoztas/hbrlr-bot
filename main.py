@@ -1,8 +1,11 @@
+
 import os
 import time
+import json
 import requests
 import feedparser
 from google import genai
+from google.genai import types
 from supabase import create_client, Client
 
 # Ortam değişkenleri
@@ -13,21 +16,13 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-# Kategorilerine göre zenginleştirilmiş RSS kaynakları
 RSS_FEEDS = [
-    # Gündem
     {"url": "https://www.trthaber.com/sondakika_articles.rss", "kategori": "Gündem"},
     {"url": "https://www.cnnturk.com/feed/rss/all/news", "kategori": "Gündem"},
-    
-    # Spor
     {"url": "https://www.fotomac.com.tr/rss/anasayfa.xml", "kategori": "Spor"},
     {"url": "https://www.fanatik.com.tr/rss/anasayfa", "kategori": "Spor"},
     {"url": "https://www.ntvspor.net/rss/anasayfa", "kategori": "Spor"},
-
-    # Ekonomi
     {"url": "https://www.bloomberght.com/rss", "kategori": "Ekonomi"},
-
-    # Teknoloji
     {"url": "https://www.donanimhaber.com/rss/tum/", "kategori": "Teknoloji"}
 ]
 
@@ -45,45 +40,45 @@ def resim_url_al(entry):
 def haberi_islemden_gecir(metin, orijinal_baslik, kategori):
     prompt = f"""
     Sen minimalist bir haber platformu için {kategori} kategorisinde editörlük yapıyorsun.
-    Aşağıdaki haberi incele.
+    Sana verilen haber başlığını ve detayını incele.
 
-    GENEL KURAL (Haberlerin %80-90'ı için):
-    - BAŞLIK: İlgi çekici, merak uyandıran, modern ve kısa bir başlık at (4-7 kelime). Zorlama sorular sorma.
-    - ÖZET: Haberin en kritik sonucunu veya detayını veren ultra kısa bir özet yaz (Maksimum 3-4 kelime).
+    KURAL 1 - MAÇ / MÜSABAKA HABERLERİ:
+    - Eğer metinde maçın SAATİ veya YAYIN KANALI bilgisi varsa:
+      * baslik: "Türkiye - İtalya maçı saat kaçta, hangi kanalda?"
+      * ozet: Sadece saat ve kanal yaz (Örn: "Bugün 20:00 | TRT Spor")
+    - Eğer saat veya kanal bilgisi metinde yoksa:
+      * baslik: İlgi çekici kısa başlık (Örn: "Filenin Sultanları Dev Finalde")
+      * ozet: En net durum özetini 3-5 kelimeyle yaz (Örn: "Türkiye ile İtalya şampiyonluk için karşılaşıyor.")
 
-    İSTİSNA KURAL (Sadece tam uyan eğlenceli/spesifik haberlerde - Çok nadir kullan):
-    - Eğer haber çok net bir Evet/Hayır merakı doğuruyorsa (Örn: "Maaşlara zam geldi mi?", "Derbi ertelendi mi?"):
-      * BAŞLIK: Net bir soru cümlesi yap.
-      * ÖZET: Sadece "Evet" ya da "Hayır" yaz.
-
-    ÇIKTI FORMATI:
-    Aynen şu formatta ver, ekstra açıklama ekleme:
-    BAŞLIK: [Başlık]
-    ÖZET: [Özet]
+    KURAL 2 - GENEL HABERLER:
+    - baslik: Merak uyandıran, net ve kısa bir başlık (4-7 kelime).
+    - ozet: Haberin en kritik sonucunu veren ultra kısa detay (3-5 kelime).
 
     Haber Başlığı: {orijinal_baslik}
     Haber İçeriği: {metin}
     """
+
     try:
+        # Yanıtın kesin olarak JSON formatında dönmesini sağlıyoruz
         response = client.models.generate_content(
             model='gemini-3.5-flash-lite',
-            contents=prompt
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema={
+                    "type": "OBJECT",
+                    "properties": {
+                        "baslik": {"type": "STRING"},
+                        "ozet": {"type": "STRING"}
+                    },
+                    "required": ["baslik", "ozet"]
+                }
+            )
         )
-        cikti = response.text.strip()
         
-        yeni_baslik = orijinal_baslik
-        ozet = ""
-
-        for satir in cikti.split("\n"):
-            if satir.startswith("BAŞLIK:"):
-                yeni_baslik = satir.replace("BAŞLIK:", "").strip()
-            elif satir.startswith("ÖZET:"):
-                ozet = satir.replace("ÖZET:", "").strip()
-
-        if not ozet:
-            ozet = cikti
-
-        return yeni_baslik, ozet
+        data = json.loads(response.text.strip())
+        return data.get("baslik", orijinal_baslik), data.get("ozet", "")
+        
     except Exception as e:
         print("AI Hatası:", e)
         return orijinal_baslik, None
@@ -94,13 +89,11 @@ def main():
         kategori = feed_info["kategori"]
         
         feed = feedparser.parse(feed_url)
-        # Her kaynaktan en güncel 2 haberi çekelim
         for entry in feed.entries[:2]:
             orijinal_baslik = entry.title
             link = entry.link
             resim_url = resim_url_al(entry)
             
-            # Veritabanında aynı haberin olup olmadığını kontrol et
             check = supabase.table("haberler").select("id").eq("link", link).execute()
             if len(check.data) == 0:
                 yeni_baslik, ozet = haberi_islemden_gecir(entry.get("summary", orijinal_baslik), orijinal_baslik, kategori)
