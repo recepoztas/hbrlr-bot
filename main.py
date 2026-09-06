@@ -1,3 +1,5 @@
+
+
 import os
 import requests
 import feedparser
@@ -10,8 +12,10 @@ SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# Gemini Yapılandırması
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 # RSS haber kaynakları
 RSS_FEEDS = [
@@ -23,22 +27,19 @@ DEFAULT_IMAGE = "https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=
 
 def resim_url_al(entry):
     """RSS kaydından görsel URL'sini ayıklar."""
-    # 1. 'media_content' kontrolü
     if 'media_content' in entry and len(entry.media_content) > 0:
         return entry.media_content[0].get('url', DEFAULT_IMAGE)
-    # 2. 'enclosures' kontrolü
     if 'enclosures' in entry and len(entry.enclosures) > 0:
         for enc in entry.enclosures:
             if enc.get('type', '').startswith('image/'):
                 return enc.get('href', DEFAULT_IMAGE)
-    # 3. Bulunamazsa varsayılan haber görselini dön
     return DEFAULT_IMAGE
 
 def haberi_ozetle(metin, baslik):
     prompt = f"""
     Sen net ve abartılı derecede kısa cevaplar veren bir haber editörüsün.
     Aşağıdaki haber başlığını ve metnini oku. 
-    Bu habere veya soruya verilere dayanarak MÜMKÜN OLAN EN KISA cevabı ver. 
+    Bu habere veya soruya verilere dayanarak MÜMKN OLAN EN KISA cevabı ver. 
     Eğer soru "Edecek mi/Olacak mı" gibi bir soruysa cevabın sadece "Evet", "Hayır" veya "Belki" olabilir. 
     Diğer durumlarda cevap maksimum 1-3 kelimeyi geçmesin (Örn: "Zorunlu Oldu", "İptal Edildi", "15 Ekim'de").
     
