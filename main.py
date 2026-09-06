@@ -1,4 +1,3 @@
-
 import os
 import time
 import json
@@ -37,25 +36,40 @@ def resim_url_al(entry):
 
 def haberi_islemden_gecir(metin, orijinal_baslik, kategori):
     prompt = f"""
-    Sen uzatılmış ve merak uyandırmaya çalışan haberlerin balonunu patlatan, ultra minimalist bir anti-clickbait editörüsün.
+    Sen mikro-haber formatında yayın yapan ultra minimalist bir editörsün.
+    Görevin: Her haberi doğal bir "Soru - Kestirme Cevap" ikilisine dönüştürmek.
 
-    KURAL 1 - DİZİ, MAGAZİN VE UZATILMIŞ MERAK HABERLERİ:
-    - Haber bir gelişmeyi, iddiayı veya süregelen bir merak konusunu işliyorsa:
-      * baslik: Konuyu net bir soru cümlesine çevir (Örn: "Daha 17'de Aras kardeşini bulabilecek mi?")
-      * ozet: SADECE 1 veya 2 kelimelik KESTİRME cevap ver. Yanına açıklama, tamamlama veya uzatma ekleme!
-      * ÖRNEK ÖZETLER: "Henüz değil.", "Hayır.", "Bilinmiyor.", "Evet.", "Açıklanmadı."
+    TEMEL FORMAT ŞARTLARI:
+    1. BAŞLIK:
+       - Haberi okuyucunun merak edeceği DOĞAL bir soru cümlesine çevir.
+       - Asla zorlama "Evet/Hayır" gerektiren yapay sorular sorma. 
+       - "Ne dedi?", "Soru ne oldu?", "Kime ne oldu?", "Saat kaçta?", "Açıklandı mı?" gibi sorular kullan.
 
-    KURAL 2 - MAÇ HABERLERİ:
-    - Metinde yayın saati ve kanalı varsa:
-      * baslik: "Takım A - Takım B maçı saat kaçta, hangi kanalda?"
-      * ozet: Sadece saat ve kanal (Örn: "Bugün 20:00 | TRT Spor")
+    2. ÖZET (ÇOK ÖNEMLİ):
+       - Soruya verilecek cevabı MÜMKÜN OLAN EN KISA ŞEKİLDE yaz.
+       - Cevap KESİNLİKLE 2-4 KELİMEYİ GEÇEMEZ!
+       - Yanına bağlaç, açıklama, ek cümle ASLA ekleme.
 
-    KURAL 3 - GENEL GÜNDEM/HABERLER:
-    - baslik: Kısa ve net başlık (4-6 kelime).
-    - ozet: En net sonucu veya veriyi veren maksimum 2-3 kelime (Örn: "%20 zam geldi.", "Karar onaylandı.").
+    ÖRNEKLER:
+    - Orijinal: "Cumhurbaşkanı Erdoğan Filenin Sultanlarını aradı."
+      * baslik: "Erdoğan Filenin Sultanlarına ne dedi?"
+      * ozet: "Tebrik etti."
 
-    YASAKLAR:
-    - "arayış sürüyor", "sürece dair detaylar bekleniyor", "gerçek ortaya çıktı" gibi uzatıcı dolgu ifadeleri ÖZET ALANINDA ASLA KULLANMA.
+    - Orijinal: "Daha 17 dizisinde Aras kardeşini arıyor."
+      * baslik: "Aras kardeşini bulabildi mi?"
+      * ozet: "Henüz değil."
+
+    - Orijinal: "Trabzonspor Gençlerbirliği ile karşılaşacak."
+      * baslik: "Trabzonspor maçı ne zaman, hangi kanalda?"
+      * ozet: "Bugün 20:00 | TRT Spor"
+
+    - Orijinal: "Merkez Bankası faiz kararını açıkladı."
+      * baslik: "Merkez Bankası faizi ne yaptı?"
+      * ozet: "Sabit tuttu."
+
+    - Orijinal: "Asgari ücrete ara zam yapıldı."
+      * baslik: "Asgari ücrete ne kadar zam geldi?"
+      * ozet: "%30 zam yapıldı."
 
     Haber Başlığı: {orijinal_baslik}
     Haber İçeriği: {metin}
@@ -91,27 +105,36 @@ def main():
         kategori = feed_info["kategori"]
         
         feed = feedparser.parse(feed_url)
-        for entry in feed.entries[:2]:
+        for entry in feed.entries[:3]:
             orijinal_baslik = entry.title
             link = entry.link
             resim_url = resim_url_al(entry)
             
-            check = supabase.table("haberler").select("id").eq("link", link).execute()
-            if len(check.data) == 0:
-                yeni_baslik, ozet = haberi_islemden_gecir(entry.get("summary", orijinal_baslik), orijinal_baslik, kategori)
+            # 1. Link Kontrolü
+            check_link = supabase.table("haberler").select("id").eq("link", link).execute()
+            if len(check_link.data) > 0:
+                continue
+
+            # 2. Mükerrer Haber Kontrolü (Aynı haberin tekrar girmesini önler)
+            kisa_baslik = orijinal_baslik[:18]
+            check_title = supabase.table("haberler").select("id").ilike("baslik", f"%{kisa_baslik}%").execute()
+            if len(check_title.data) > 0:
+                continue
+
+            yeni_baslik, ozet = haberi_islemden_gecir(entry.get("summary", orijinal_baslik), orijinal_baslik, kategori)
+            
+            if ozet:
+                data = {
+                    "baslik": yeni_baslik,
+                    "ozet": ozet,
+                    "link": link,
+                    "resim_url": resim_url,
+                    "kategori": kategori
+                }
+                supabase.table("haberler").insert(data).execute()
+                print(f"Eklendi ({kategori}):\n  Başlık: {yeni_baslik}\n  Özet: {ozet}\n")
                 
-                if ozet:
-                    data = {
-                        "baslik": yeni_baslik,
-                        "ozet": ozet,
-                        "link": link,
-                        "resim_url": resim_url,
-                        "kategori": kategori
-                    }
-                    supabase.table("haberler").insert(data).execute()
-                    print(f"Eklendi ({kategori}):\n  Başlık: {yeni_baslik}\n  Özet: {ozet}\n")
-                    
-                time.sleep(3)
+                time.sleep(2)
 
 if __name__ == "__main__":
     main()
