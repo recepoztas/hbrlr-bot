@@ -19,6 +19,21 @@ RSS_FEEDS = [
     "https://www.cnnturk.com/feed/rss/all/news"
 ]
 
+DEFAULT_IMAGE = "https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=800"
+
+def resim_url_al(entry):
+    """RSS kaydından görsel URL'sini ayıklar."""
+    # 1. 'media_content' kontrolü
+    if 'media_content' in entry and len(entry.media_content) > 0:
+        return entry.media_content[0].get('url', DEFAULT_IMAGE)
+    # 2. 'enclosures' kontrolü
+    if 'enclosures' in entry and len(entry.enclosures) > 0:
+        for enc in entry.enclosures:
+            if enc.get('type', '').startswith('image/'):
+                return enc.get('href', DEFAULT_IMAGE)
+    # 3. Bulunamazsa varsayılan haber görselini dön
+    return DEFAULT_IMAGE
+
 def haberi_ozetle(metin, baslik):
     prompt = f"""
     Sen net ve abartılı derecede kısa cevaplar veren bir haber editörüsün.
@@ -45,6 +60,7 @@ def main():
         for entry in feed.entries[:3]:  # Her kaynaktan son 3 haber
             baslik = entry.title
             link = entry.link
+            resim_url = resim_url_al(entry)
             
             # Veritabanında var mı kontrol et
             check = supabase.table("haberler").select("id").eq("link", link).execute()
@@ -54,9 +70,11 @@ def main():
                     supabase.table("haberler").insert({
                         "baslik": baslik,
                         "ozet": ozet,
-                        "link": link
+                        "link": link,
+                        "resim_url": resim_url
                     }).execute()
                     print(f"Eklendi: {baslik} -> {ozet}")
 
 if __name__ == "__main__":
     main()
+
