@@ -1,5 +1,3 @@
-
-
 import os
 import requests
 import feedparser
@@ -15,7 +13,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # Gemini Yapılandırması
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash-latest')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 # RSS haber kaynakları
 RSS_FEEDS = [
