@@ -1,3 +1,4 @@
+
 import os
 import requests
 import feedparser
@@ -43,26 +44,27 @@ def resim_url_al(entry):
 
 def haberi_islemden_gecir(metin, orijinal_baslik, kategori):
     """
-    Bu fonksiyon yapay zekayı kullanarak:
-    1. İnsanlarda merak uyandıracak kısa bir başlık üretir.
-    2. Tıklayınca görünen, haberin ultra kısa (3-4 kelime) özetini üretir.
+    Bu fonksiyon haberi analiz eder:
+    - Uygunsa Evet/Hayır sorusu üretir.
+    - Değilse merak uyandıran kısa dinamik başlık üretir.
+    - Özet her zaman 3-4 kelimelik net yanıt içerir.
     """
     prompt = f"""
-    Sen minimalist bir haber platformu için {kategori} kategorisinde editörlük yapıyorsun.
-    Aşağıda sana verilen haber başlığını ve haber içeriğini incele.
+    Sen minimalist ve modern bir haber platformu için editörlük yapıyorsun.
+    Aşağıda sana verilen haber başlığını ve içeriğini incele.
 
-    GÖREV 1 - YENİ BAŞLIK:
-    - İnsanların tıklayıp detayını öğrenmek isteyeceği merak uyandırıcı, net ve vurucu bir başlık yaz (Maksimum 6-8 kelime).
+    GÖREV 1 - BAŞLIK OLUŞTURMA:
+    - Haberi analiz et. Eğer haber net bir karara, gelişmeye veya iddiaya dayanıyorsa (örneğin zam, ceza, transfer, iptal, erteleme gibi) başlığı "Evet/Hayır" ile yanıtlanabilecek bir SORU CÜMLESİ yap (Örn: "Osimhen maça yetişebilecek mi?", "Akaryakıta zam geldi mi?").
+    - Eğer haber bir durum, röportaj veya soruya uymayan genel bir gelişmeyse zorlama; bunun yerine merak uyandıran, kısa ve dikkat çekici vurucu bir başlık yaz (Maksimum 6-8 kelime).
 
     GÖREV 2 - DETAY ÖZETİ:
-    - Tıklanınca görünecek olan net cevabı/özeti yaz.
-    - Başlığı aynen tekrarlama. "Trafik kazası", "Orman yangını" gibi jenerik laflar etme.
-    - Haberin en önemli detayını, skorunu veya net sonucunu ver (Maksimum 3-4 kelime).
+    - Soru başlıkları için: İlk kelimen "Evet" veya "Hayır" olsun, ardından 2-3 kelimelik net sonucu ekle (Örn: "Evet, 2 hafta yok.", "Hayır, fiyatlar sabit.").
+    - Genel başlıklar için: Haberin en kritik detayını, sonucunu veya skorunu veren 3-4 kelimelik net bilgi yaz.
 
     ÇIKTI FORMATI:
-    Çıktıyı aynen şu formatta ver, araya başka açıklama ekleme:
-    BAŞLIK: [Buraya yeni başlığı yaz]
-    ÖZET: [Buraya özeti yaz]
+    Aynen şu formatta ver, araya başka hiçbir açıklama ekleme:
+    BAŞLIK: [Başlık]
+    ÖZET: [Özet]
 
     Haber Başlığı: {orijinal_baslik}
     Haber İçeriği: {metin}
