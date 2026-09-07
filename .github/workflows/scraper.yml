@@ -2,19 +2,12 @@ name: Haber Botu Otomasyonu
 
 on:
   schedule:
-    - cron: '*/30 * * * *' # Her 30 dakikada bir çalışır
-  workflow_dispatch: # Elle tetikleme butonu
-
-# Aynı anda iki botun çalışıp birbirini kilitlemesini engeller
-concurrency:
-  group: haber-botu-group
-  cancel-in-progress: true
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 5 # 5 dakikayı geçerse işlemi otomatik durdurur
-
     steps:
       - name: Kodları Çek
         uses: actions/checkout@v4
@@ -25,13 +18,13 @@ jobs:
           python-version: '3.10'
 
       - name: Kütüphaneleri Yükle
-        run: pip install -r requirements.txt
+        run: |
+          pip install requests feedparser google-genai supabase
 
       - name: Botu Çalıştır
-        timeout-minutes: 4 # Sadece Python kodu en fazla 4 dakika çalışabilir
-        run: python main.py
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: python main.py
 
