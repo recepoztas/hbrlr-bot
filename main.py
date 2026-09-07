@@ -42,7 +42,7 @@ def haberi_islemden_gecir(metin, orijinal_baslik, kategori, yayin_tarihi):
     YAYIN TARİHİ: {yayin_tarihi}
     KATEGORİ: {kategori}
 
-    KRİTİK FİLTRE 1 - İLGİÇLİK VE ARANABİLİRLİK FİLTRESİ (ÇOK KRİTİK):
+    KRİTİK FİLTRE 1 - İLGİNÇLİK VE ARANABİLİRLİK FİLTRESİ (ÇOK KRİTİK):
     - Sıradan asayiş olaylarını (yıldırım düşmesi, yerel kaza, münferit kavga/yangın vb.), sıradan yerel haberleri ELE.
     - SADECE insanların arama motorlarında aratacağı, genel kamuoyunun merak edeceği (Örn: Maç saatleri/kanalları, transferler, elenen isimler, ekonomi/zam kararları, teknoloji duyuruları) haberleri işle.
     - Eğer haber sıradan bir bölgesel olaysa veya aranacak bir nitelikte değilse ozet alanına SADECE "YETERSIZ" yaz.
@@ -64,30 +64,38 @@ def haberi_islemden_gecir(metin, orijinal_baslik, kategori, yayin_tarihi):
     Haber İçeriği: {metin}
     """
 
-    try:
-        # İstenildiği gibi gemini-3.5-flash korundu
-        response = client.models.generate_content(
-            model='gemini-3.5-flash',
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema={
-                    "type": "OBJECT",
-                    "properties": {
-                        "baslik": {"type": "STRING"},
-                        "ozet": {"type": "STRING"}
-                    },
-                    "required": ["baslik", "ozet"]
-                }
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model='gemini-3.5-flash',
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema={
+                        "type": "OBJECT",
+                        "properties": {
+                            "baslik": {"type": "STRING"},
+                            "ozet": {"type": "STRING"}
+                        },
+                        "required": ["baslik", "ozet"]
+                    }
+                )
             )
-        )
-        
-        data = json.loads(response.text.strip())
-        return data.get("baslik", orijinal_baslik), data.get("ozet", "")
-        
-    except Exception as e:
-        print(f"AI Hatası ({orijinal_baslik[:20]}...):", e)
-        return orijinal_baslik, None
+            
+            data = json.loads(response.text.strip())
+            return data.get("baslik", orijinal_baslik), data.get("ozet", "")
+            
+        except Exception as e:
+            err_msg = str(e)
+            if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
+                print(f"Kota aşıldı (429), 35 saniye beklenip tekrar deneniyor... (Deneme {attempt + 1}/{max_retries})")
+                time.sleep(35)
+            else:
+                print(f"AI Hatası ({orijinal_baslik[:20]}...):", e)
+                return orijinal_baslik, None
+
+    return orijinal_baslik, None
 
 def main():
     for feed_info in RSS_FEEDS:
@@ -95,13 +103,11 @@ def main():
         kategori = feed_info["kategori"]
         
         feed = feedparser.parse(feed_url)
-        # Maç ve önemli haberleri kaçırmamak için tarama 3'ten 10'a çıkarıldı
-        for entry in feed.entries[:10]:
+        for entry in feed.entries[:7]:
             orijinal_baslik = entry.title
             link = entry.link
             resim_url = resim_url_al(entry)
             
-            # İçeriğin boş kalmaması için daha geniş metin kontrolü
             icerik_metni = entry.get("summary", "")
             if "description" in entry and len(entry.description) > len(icerik_metni):
                 icerik_metni = entry.description
@@ -121,7 +127,7 @@ def main():
                 yayin_tarihi
             )
             
-            # İçerik yetersizse, sıradan asayişse veya AI "YETERSIZ" dediyse doğrudan atla
+            # İçerik yetersizse veya AI "YETERSIZ" dediyse atla
             if not ozet or "YETERSIZ" in ozet.upper() or len(ozet) <= 2:
                 print(f"Atlandı (Filtre/Yetersiz İçerik): {orijinal_baslik}")
                 continue
@@ -143,7 +149,8 @@ def main():
             supabase.table("haberler").insert(data).execute()
             print(f"Eklendi ({kategori}):\n  Başlık: {yeni_baslik}\n  Özet: {ozet}\n")
                 
-            time.sleep(2)
+            # İstekler arası güvenli bekleme süresi
+            time.sleep(4)
 
 if __name__ == "__main__":
     main()
