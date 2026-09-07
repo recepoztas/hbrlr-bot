@@ -37,65 +37,57 @@ def resim_url_al(entry):
 
 def haberi_islemden_gecir(metin, orijinal_baslik, kategori, yayin_tarihi):
     prompt = f"""
-    Sen minimalist, merak uyandıran soru-cevap formatında içerik üreten anti-clickbait bir haber editörüsün.
+    Sen minimalist ve doğal bir dille haber özetleyen anti-clickbait editörüsün.
 
     YAYIN TARİHİ: {yayin_tarihi}
-    KATEGORİ: {kategori}
 
-    KRİTİK FİLTRE 1 - İLGİNÇLİK VE ARANABİLİRLİK FİLTRESİ (ÇOK KRİTİK):
-    - Sıradan asayiş olaylarını (yıldırım düşmesi, yerel kaza, münferit kavga/yangın vb.), sıradan yerel haberleri ELE.
-    - SADECE insanların arama motorlarında aratacağı, genel kamuoyunun merak edeceği (Örn: Maç saatleri/kanalları, transferler, elenen isimler, ekonomi/zam kararları, teknoloji duyuruları) haberleri işle.
-    - Eğer haber sıradan bir bölgesel olaysa veya aranacak bir nitelikte değilse ozet alanına SADECE "YETERSIZ" yaz.
+    ÖNEMLİ KURAL 1 - ÖZNE VE ÖZEL İSİM ZORUNLULUĞU (ÇOK KRİTİK):
+    - Başlık "Kim elendi?", "Kim kazandı?", "Kimi transfer etti?", "Sakatlandı mı?" gibi spesifik bir kişi/kurum soruyorsa; özet MUTLAKA o kişinin veya kurumun ÖZEL İSMİNİ barındırmalıdır.
+    - Eğer haber içeriğinde elenen/kazanan/bahsedilen kişinin İSMİ AÇIKÇA YAZMIYORSA (sadece "yarışmaya veda etti", "belli oldu" gibi muğlak laflar varsa) ozet alanına SADECE "YETERSIZ" yaz.
+    - YANLIŞ ÖRNEK: Başlık: "MasterChef'te kim elendi?" -> Özet: "Yarışmaya veda etti." (İsim yok, GEÇERSİZ)
+    - DOĞRU ÖRNEK: Başlık: "MasterChef'te kim elendi?" -> Özet: "Ayşe yarışmaya veda etti."
 
-    KRİTİK FİLTRE 2 - ÖZNE VE ÖZEL İSİM ZORUNLULUĞU:
-    - Başlık veya soru bir kişi/kurum/saat/kanal soruyorsa; özet MUTLAKA o net bilgiyi (İsim, Saat, Yayın Kanalı vb.) içermelidir.
-    - Metin içinde bu net cevap yoksa ozet alanına SADECE "YETERSIZ" yaz.
+    ÖNEMLİ KURAL 2 - TARİH / SAAT BİLGİSİ VE BEYANLAR:
+    - Haber metninde net bir tarih, gün veya saat bilgisi geçiyorsa (örn: "9 Eylül Çarşamba TSİ 21.00"), bu bilgiyi özet olarak yaz.
+    - Metin içinde "netleşmedi" gibi ifadeler geçse bile, eğer metnin devamında saat/tarih veriliyorsa O BİLGİYİ AL.
+    - YALNIZCA haber içeriğinde GERÇEKTEN hiçbir saat/tarih/isim veya somut yanıt yoksa ozet alanına SADECE "YETERSIZ" yaz.
 
-    ÖNEMLİ KURAL 3 - MAÇ VE ETKİNLİK HABERLERİ:
-    - Maç haberlerinde "Hangi kanalda?", "Saat kaçta?" sorularının cevabı metinde varsa özete "9 Eylül Çarşamba TSİ 22.00 / TRT 1" gibi NET bilgi yaz.
+    ÖNEMLİ KURAL 3 - ÖZET FORMATI (2-5 KELİME):
+    - Özet, başlığa verilen Ultra Net, Özel İsim / Somut Bilgi İçeren doğrudan bir cevap olmalıdır.
 
-    ÖNEMLİ KURAL 4 - ÖZET FORMATI (2-5 KELİME):
-    - Özet, soruya verilen doğrudan ve en kısa cevap olmalıdır.
-
-    ÖNEMLİ KURAL 5 - BAĞLAMSAL VE DOĞAL BAŞLIKLAR:
-    - Soruyu okuyucunun aratacağı doğal bir dille yaz (Örn: "Galatasaray - Real Madrid maçı ne zaman, hangi kanalda?").
+    ÖNEMLİ KURAL 4 - BAĞLAMSAL VE DOĞAL BAŞLIKLAR:
+    - Soruları okuyucunun konuyu anlayacağı DOĞAL ve BAĞLAMSAL bir dille sor.
+    - YANLIŞ: "Onuachu maça devam edebildi mi?"
+    - DOĞRU: "Onuachu sakatlandı mı?"
 
     Haber Başlığı: {orijinal_baslik}
     Haber İçeriği: {metin}
     """
 
-    max_retries = 3
-    for attempt in range(max_retries):
-        try:
-            response = client.models.generate_content(
-                model='gemini-3.5-flash',
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema={
-                        "type": "OBJECT",
-                        "properties": {
-                            "baslik": {"type": "STRING"},
-                            "ozet": {"type": "STRING"}
-                        },
-                        "required": ["baslik", "ozet"]
-                    }
-                )
+    try:
+        # Seçilen model: gemini-3.5-flash
+        response = client.models.generate_content(
+            model='gemini-3.5-flash',
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema={
+                    "type": "OBJECT",
+                    "properties": {
+                        "baslik": {"type": "STRING"},
+                        "ozet": {"type": "STRING"}
+                    },
+                    "required": ["baslik", "ozet"]
+                }
             )
-            
-            data = json.loads(response.text.strip())
-            return data.get("baslik", orijinal_baslik), data.get("ozet", "")
-            
-        except Exception as e:
-            err_msg = str(e)
-            if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
-                print(f"Kota aşıldı (429), 35 saniye beklenip tekrar deneniyor... (Deneme {attempt + 1}/{max_retries})")
-                time.sleep(35)
-            else:
-                print(f"AI Hatası ({orijinal_baslik[:20]}...):", e)
-                return orijinal_baslik, None
-
-    return orijinal_baslik, None
+        )
+        
+        data = json.loads(response.text.strip())
+        return data.get("baslik", orijinal_baslik), data.get("ozet", "")
+        
+    except Exception as e:
+        print("AI Hatası:", e)
+        return orijinal_baslik, None
 
 def main():
     for feed_info in RSS_FEEDS:
@@ -103,15 +95,12 @@ def main():
         kategori = feed_info["kategori"]
         
         feed = feedparser.parse(feed_url)
-        for entry in feed.entries[:5]:
+        for entry in feed.entries[:3]:
             orijinal_baslik = entry.title
             link = entry.link
             resim_url = resim_url_al(entry)
             
-            icerik_metni = entry.get("summary", "")
-            if "description" in entry and len(entry.description) > len(icerik_metni):
-                icerik_metni = entry.description
-
+            # RSS'ten yayın tarihini al
             yayin_tarihi = entry.get("published", entry.get("updated", "Tarih Belirtilmedi"))
 
             # 1. Birebir Link Kontrolü
@@ -121,15 +110,15 @@ def main():
 
             # 2. AI İşlemi
             yeni_baslik, ozet = haberi_islemden_gecir(
-                icerik_metni if icerik_metni else orijinal_baslik, 
+                entry.get("summary", orijinal_baslik), 
                 orijinal_baslik, 
                 kategori, 
                 yayin_tarihi
             )
             
-            # İçerik yetersizse veya AI "YETERSIZ" dediyse atla
+            # İçerik yetersizse, isim barındırmıyorsa veya AI "YETERSIZ" dediyse doğrudan atla
             if not ozet or "YETERSIZ" in ozet.upper() or len(ozet) <= 2:
-                print(f"Atlandı (Filtre/Yetersiz İçerik): {orijinal_baslik}")
+                print(f"Atlandı (Eksik İsim/İçerik): {orijinal_baslik}")
                 continue
 
             # 3. AI Başlığı Üzerinden Mükerrer Kontrolü
@@ -149,9 +138,9 @@ def main():
             supabase.table("haberler").insert(data).execute()
             print(f"Eklendi ({kategori}):\n  Başlık: {yeni_baslik}\n  Özet: {ozet}\n")
                 
-            # İstekler arası güvenli bekleme süresi
-            time.sleep(4)
+            time.sleep(2)
 
 if __name__ == "__main__":
     main()
+
 
