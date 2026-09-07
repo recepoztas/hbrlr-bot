@@ -103,7 +103,7 @@ def main():
         kategori = feed_info["kategori"]
         
         feed = feedparser.parse(feed_url)
-        for entry in feed.entries[:7]:
+        for entry in feed.entries[:5]:
             orijinal_baslik = entry.title
             link = entry.link
             resim_url = resim_url_al(entry)
