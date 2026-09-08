@@ -51,7 +51,6 @@ def haber_sayfasindan_icerik_cek(url: str) -> str:
         response.raise_for_status()
         soup = BeautifulSoup(response.content, "html.parser")
 
-        # Yaygın haber sitelerinin ana içerik alanlarını dene
         selectors = [
             "article",
             ".news-content",
@@ -68,14 +67,12 @@ def haber_sayfasindan_icerik_cek(url: str) -> str:
         for selector in selectors:
             element = soup.select_one(selector)
             if element:
-                # Gereksiz etiketleri temizle
                 for tag in element(["script", "style", "aside", "nav", "footer", "iframe"]):
                     tag.decompose()
                 text = element.get_text(separator=" ", strip=True)
                 if len(text) > 150:
-                    return text[:4000]  # Gemini'ye çok uzun göndermemek için
+                    return text[:4000]
 
-        # Hiçbiri tutmazsa body'den al
         body = soup.find("body")
         if body:
             for tag in body(["script", "style", "nav", "footer", "header", "aside"]):
@@ -149,13 +146,19 @@ Haber İçeriği: {metin}
                 )
             )
 
+            # Boş cevap kontrolü
+            if not response.text or not response.text.strip():
+                print(f"  → AI boş cevap döndü (Deneme {attempt+1})")
+                time.sleep(10)
+                continue
+
             data = json.loads(response.text.strip())
             return data.get("baslik", orijinal_baslik), data.get("ozet", "")
 
         except Exception as e:
             err_msg = str(e)
             if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "quota" in err_msg.lower():
-                bekleme = 40 + (attempt * 15)
+                bekleme = 60 + (attempt * 30)  # 60, 90, 120, 150 saniye
                 print(f"  → Kota aşıldı (429). {bekleme} saniye bekleniyor... (Deneme {attempt+1}/{max_retries})")
                 time.sleep(bekleme)
             else:
@@ -180,7 +183,8 @@ def main():
             print(f"RSS okunamadı: {e}")
             continue
 
-        for entry in feed.entries[:12]:  # Her kaynaktan son 12 haber
+        # Her kaynaktan sadece 4 haber (kota dostu)
+        for entry in feed.entries[:4]:
             orijinal_baslik = entry.title.strip()
             link = entry.link
             resim_url = resim_url_al(entry)
@@ -197,15 +201,14 @@ def main():
 
             print(f"\nİşleniyor: {orijinal_baslik[:70]}...")
 
-            # 2. Önce RSS özetini al
+            # 2. RSS özeti
             rss_metin = entry.get("summary", "") or entry.get("description", "")
             if len(rss_metin) < 80:
                 rss_metin = orijinal_baslik
 
-            # 3. Haber sayfasından da içerik çek
+            # 3. Sayfa içeriği
             sayfa_metni = haber_sayfasindan_icerik_cek(link)
             
-            # En iyi metni seç
             if len(sayfa_metni) > len(rss_metin) + 100:
                 icerik = sayfa_metni
                 print("  → Sayfa içeriği kullanıldı")
@@ -251,8 +254,8 @@ def main():
             except Exception as e:
                 print(f"  → Veritabanı ekleme hatası: {e}")
 
-            # Kota dostu bekleme
-            time.sleep(random.uniform(3.5, 4.8))
+            # Kota dostu uzun bekleme
+            time.sleep(random.uniform(8, 12))
 
     print("\n\nTüm işlemler tamamlandı.")
 
