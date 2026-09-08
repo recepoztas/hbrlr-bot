@@ -19,7 +19,7 @@ jobs:
 
       - name: Kütüphaneleri Yükle
         run: |
-          pip install requests feedparser google-genai supabase
+          pip install feedparser requests beautifulsoup4 google-genai supabase
 
       - name: Botu Çalıştır
         env:
