@@ -100,22 +100,22 @@ KATEGORİ: {kategori}
 
 2. BAŞLIK KURALLARI
    - Doğal ve aranabilir olsun.
-   - Haber net bir evet/hayır durumundaysa "mı?" sorusu kullanabilirsin (örnek: "Mansur Yavaş CHP resepsiyonuna katılacak mı?").
-   - Değilse zorlama "mı?" sorusu yapma. Daha doğal soru veya ifade kullan.
-   - Örnek iyi başlıklar:
-     • "Crytek İstanbul QA ekibiyle ilgili son durum ne?"
-     • "Galatasaray - Sporting maçı ne zaman, hangi kanalda?"
-     • "Mansur Yavaş CHP resepsiyonuna katılacak mı?"
+   - Haber net bir evet/hayır durumundaysa "mı?" sorusu kullanabilirsin.
+   - Değilse zorlama "mı?" sorusu yapma.
+   - Başlık ve özet MUTLAKA Türkçe olsun. İngilizce yazma.
 
-3. ÖZET KURALLARI (ÇOK ÖNEMLİ - AŞIRI KISA)
-   - Mümkün olan en kısa cevabı ver.
+3. ÖZET KURALLARI (ÇOK ÖNEMLİ)
+   - Mümkün olan en kısa ve somut cevabı ver.
    - Evet/Hayır durumundaysa sadece "Evet" veya "Hayır" yaz.
    - Saat/kanal sorusuysa sadece "22:00 / TRT 1" yaz.
-   - Diğer durumlarda maksimum 5-6 kelime.
-   - Örnekler: "Hayır", "Ekip işten çıkarıldı", "22:00 / TRT 1", "2-1 bitti"
+   - Diğer durumlarda maksimum 6 kelime.
+   - Özet, başlığı tekrar etmesin.
+   - Belirsiz ve bilgisiz ifadeler YASAK: "sürpriz", "flaş", "gerçek ortaya çıktı", "son durum", "açıklama yaptı" gibi kelimeler kullanma.
+   - Okuyan kişi ne olduğunu net anlasın.
+   - Örnek iyi özetler: "Hayır", "Ekip işten çıkarıldı", "22:00 / TRT 1", "Kadrodan çıkarıldı", "2-1 bitti"
 
 4. GENEL
-   - Sadece gerçekten önemli veya aranabilir haberleri işle.
+   - Sadece önemli veya aranabilir haberleri işle.
    - Çok önemsiz yerel haberlerde ozet alanına "YETERSIZ" yaz.
 
 Haber Başlığı: {orijinal_baslik}
@@ -136,7 +136,7 @@ SADECE şu JSON formatında cevap ver, başka hiçbir şey yazma:
                 messages=[
                     {
                         "role": "system",
-                        "content": "Sen sadece geçerli JSON formatında, aşırı kısa cevaplar veren bir haber editörüsün. Özet kısmı mümkün olduğunca kısa olsun. Asla JSON dışında hiçbir şey yazma."
+                        "content": "Sen sadece geçerli JSON formatında, aşırı kısa ve somut Türkçe cevaplar veren bir haber editörüsün. Özet bilgisiz veya belirsiz olmasın. Asla JSON dışında hiçbir şey yazma."
                     },
                     {
                         "role": "user",
