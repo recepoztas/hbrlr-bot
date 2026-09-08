@@ -133,7 +133,7 @@ Sadece aşağıdaki JSON formatında cevap ver, başka hiçbir şey yazma:
     for attempt in range(max_retries):
         try:
             completion = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="openai/gpt-oss-20b",
                 messages=[
                     {"role": "system", "content": "Sen sadece istenen JSON formatında cevap veren bir haber editörüsün."},
                     {"role": "user", "content": prompt}
