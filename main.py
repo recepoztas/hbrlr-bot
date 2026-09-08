@@ -122,7 +122,7 @@ Kullanıcı Google'da ne ararsa o soruyu başlık yap, cevabı ise mümkün olan
 Haber Başlığı: {orijinal_baslik}
 Haber İçeriği: {metin}
 
-Sadece aşağıdaki JSON formatında cevap ver, başka hiçbir şey yazma:
+SADECE aşağıdaki JSON formatında cevap ver. Başka hiçbir şey yazma:
 {{
   "baslik": "...",
   "ozet": "..."
@@ -135,19 +135,36 @@ Sadece aşağıdaki JSON formatında cevap ver, başka hiçbir şey yazma:
             completion = client.chat.completions.create(
                 model="openai/gpt-oss-20b",
                 messages=[
-                    {"role": "system", "content": "Sen sadece istenen JSON formatında cevap veren bir haber editörüsün."},
-                    {"role": "user", "content": prompt}
+                    {
+                        "role": "system",
+                        "content": "Sen sadece geçerli JSON formatında cevap veren bir haber editörüsün. Asla JSON dışında hiçbir şey yazma. Cevabın mutlaka şu formatta olsun: {\"baslik\": \"...\", \"ozet\": \"...\"}"
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
                 ],
                 temperature=0.2,
-                max_tokens=250,
-                response_format={"type": "json_object"}
+                max_tokens=400
             )
 
             raw = completion.choices[0].message.content.strip()
+
             if not raw:
                 print(f"  → AI boş cevap döndü (Deneme {attempt+1})")
                 time.sleep(5)
                 continue
+
+            # JSON temizleme
+            if "```json" in raw:
+                raw = raw.split("```json")[1].split("```")[0].strip()
+            elif "```" in raw:
+                raw = raw.split("```")[1].split("```")[0].strip()
+
+            start = raw.find("{")
+            end = raw.rfind("}") + 1
+            if start != -1 and end > start:
+                raw = raw[start:end]
 
             data = json.loads(raw)
             return data.get("baslik", orijinal_baslik), data.get("ozet", "")
@@ -155,12 +172,13 @@ Sadece aşağıdaki JSON formatında cevap ver, başka hiçbir şey yazma:
         except Exception as e:
             err_msg = str(e)
             if "rate_limit" in err_msg.lower() or "429" in err_msg:
-                bekleme = 20 + (attempt * 15)
+                bekleme = 15 + (attempt * 10)
                 print(f"  → Rate limit. {bekleme} saniye bekleniyor... (Deneme {attempt+1}/{max_retries})")
                 time.sleep(bekleme)
             else:
                 print(f"  → AI Hatası ({orijinal_baslik[:40]}...): {e}")
-                return orijinal_baslik, None
+                time.sleep(3)
+                continue
 
     return orijinal_baslik, None
 
@@ -180,7 +198,7 @@ def main():
             print(f"RSS okunamadı: {e}")
             continue
 
-        for entry in feed.entries[:5]:  # Her kaynaktan 5 haber
+        for entry in feed.entries[:5]:
             orijinal_baslik = entry.title.strip()
             link = entry.link
             resim_url = resim_url_al(entry)
