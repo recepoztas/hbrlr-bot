@@ -86,43 +86,42 @@ def haber_sayfasindan_icerik_cek(url: str) -> str:
 
 def haberi_islemden_gecir(metin: str, orijinal_baslik: str, kategori: str, yayin_tarihi: str):
     prompt = f"""
-Sen Türkiye'deki haberleri en kısa, net ve aranabilir soru-cevap formatına çeviren profesyonel bir editörsün.
+Sen Türkiye'deki haberleri en kısa, net ve aranabilir formatta sunan bir editörsün.
 
 YAYIN TARİHİ: {yayin_tarihi}
 KATEGORİ: {kategori}
 
-### ANA AMAÇ
-Kullanıcı Google'da ne ararsa o soruyu başlık yap, cevabı ise mümkün olan en kısa ve doğru şekilde ver.
+### KURALLAR
 
-### ÖNCELİK SIRASI
+1. MAÇ / SPOR YAYIN BİLGİLERİ (EN ÖNCELİKLİ)
+   - Saat ve kanal varsa mutlaka çıkar.
+   - Format: "22:00 / TRT 1" veya "9 Eylül 22:00 / beIN Sports"
+   - Bilgi yoksa en net kısa cevabı ver.
 
-1. MAÇ / SPOR YAYIN BİLGİLERİ (EN ÖNEMLİ)
-   - Saat ve kanal bilgisi varsa mutlaka çıkar.
-   - Format örnekleri:
-     • "9 Eylül Çarşamba 22:00 / TRT 1"
-     • "22:00 / beIN Sports"
-     • "Galatasaray 2-1 kazandı"
-   - Bilgi eksik olsa bile en net cevabı ver, "YETERSIZ" deme.
+2. BAŞLIK KURALLARI
+   - Doğal ve aranabilir olsun.
+   - Haber net bir evet/hayır durumundaysa "mı?" sorusu kullanabilirsin (örnek: "Mansur Yavaş CHP resepsiyonuna katılacak mı?").
+   - Değilse zorlama "mı?" sorusu yapma. Daha doğal soru veya ifade kullan.
+   - Örnek iyi başlıklar:
+     • "Crytek İstanbul QA ekibiyle ilgili son durum ne?"
+     • "Galatasaray - Sporting maçı ne zaman, hangi kanalda?"
+     • "Mansur Yavaş CHP resepsiyonuna katılacak mı?"
 
-2. DİĞER HABERLER
-   - Ülkeyi ilgilendiren, insanların arayabileceği her haberi işle (ekonomi, zam, teknoloji, önemli yerel olaylar dahil).
-   - Sadece gerçekten çok önemsiz ve yerel (örneğin mahalle yangını, küçük trafik kazası) haberlerde ozet alanına "YETERSIZ" yaz.
+3. ÖZET KURALLARI (ÇOK ÖNEMLİ - AŞIRI KISA)
+   - Mümkün olan en kısa cevabı ver.
+   - Evet/Hayır durumundaysa sadece "Evet" veya "Hayır" yaz.
+   - Saat/kanal sorusuysa sadece "22:00 / TRT 1" yaz.
+   - Diğer durumlarda maksimum 5-6 kelime.
+   - Örnekler: "Hayır", "Ekip işten çıkarıldı", "22:00 / TRT 1", "2-1 bitti"
 
-3. ÖZET KURALLARI
-   - Maksimum 12 kelime.
-   - Doğrudan cevap olsun. Gereksiz giriş cümlesi ekleme.
-   - Örnekler: "22:00 / TRT 1", "Dolar 34.85 TL", "Zam yok", "Galatasaray şampiyon oldu"
-
-4. BAŞLIK KURALLARI
-   - Doğal arama dili kullan.
-   - Örnek: "Galatasaray - Real Madrid maçı ne zaman, hangi kanalda?"
-   - Örnek: "Benzine zam geldi mi?"
-   - Uydurma veya abartılı soru yazma.
+4. GENEL
+   - Sadece gerçekten önemli veya aranabilir haberleri işle.
+   - Çok önemsiz yerel haberlerde ozet alanına "YETERSIZ" yaz.
 
 Haber Başlığı: {orijinal_baslik}
 Haber İçeriği: {metin}
 
-SADECE aşağıdaki JSON formatında cevap ver. Başka hiçbir şey yazma:
+SADECE şu JSON formatında cevap ver, başka hiçbir şey yazma:
 {{
   "baslik": "...",
   "ozet": "..."
@@ -137,7 +136,7 @@ SADECE aşağıdaki JSON formatında cevap ver. Başka hiçbir şey yazma:
                 messages=[
                     {
                         "role": "system",
-                        "content": "Sen sadece geçerli JSON formatında cevap veren bir haber editörüsün. Asla JSON dışında hiçbir şey yazma. Cevabın mutlaka şu formatta olsun: {\"baslik\": \"...\", \"ozet\": \"...\"}"
+                        "content": "Sen sadece geçerli JSON formatında, aşırı kısa cevaplar veren bir haber editörüsün. Özet kısmı mümkün olduğunca kısa olsun. Asla JSON dışında hiçbir şey yazma."
                     },
                     {
                         "role": "user",
