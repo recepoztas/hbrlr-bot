@@ -5,17 +5,16 @@ import random
 import requests
 import feedparser
 from bs4 import BeautifulSoup
-from google import genai
-from google.genai import types
+from groq import Groq
 from supabase import create_client, Client
 
 # ====================== ORTAM DEĞİŞKENLERİ ======================
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-client = genai.Client(api_key=GEMINI_API_KEY)
+client = Groq(api_key=GROQ_API_KEY)
 
 # ====================== RSS KAYNAKLARI ======================
 RSS_FEEDS = [
@@ -45,7 +44,6 @@ def resim_url_al(entry):
 
 
 def haber_sayfasindan_icerik_cek(url: str) -> str:
-    """Haber sayfasının ana metnini çekmeye çalışır."""
     try:
         response = requests.get(url, headers=HEADERS, timeout=10)
         response.raise_for_status()
@@ -123,43 +121,42 @@ Kullanıcı Google'da ne ararsa o soruyu başlık yap, cevabı ise mümkün olan
 
 Haber Başlığı: {orijinal_baslik}
 Haber İçeriği: {metin}
+
+Sadece aşağıdaki JSON formatında cevap ver, başka hiçbir şey yazma:
+{{
+  "baslik": "...",
+  "ozet": "..."
+}}
 """
 
-    max_retries = 4
+    max_retries = 3
     for attempt in range(max_retries):
         try:
-            response = client.models.generate_content(
-                model="gemini-3.5-flash",
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    response_schema={
-                        "type": "OBJECT",
-                        "properties": {
-                            "baslik": {"type": "STRING"},
-                            "ozet": {"type": "STRING"}
-                        },
-                        "required": ["baslik", "ozet"]
-                    },
-                    temperature=0.25,
-                    max_output_tokens=200
-                )
+            completion = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": "Sen sadece istenen JSON formatında cevap veren bir haber editörüsün."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.2,
+                max_tokens=250,
+                response_format={"type": "json_object"}
             )
 
-            # Boş cevap kontrolü
-            if not response.text or not response.text.strip():
+            raw = completion.choices[0].message.content.strip()
+            if not raw:
                 print(f"  → AI boş cevap döndü (Deneme {attempt+1})")
-                time.sleep(10)
+                time.sleep(5)
                 continue
 
-            data = json.loads(response.text.strip())
+            data = json.loads(raw)
             return data.get("baslik", orijinal_baslik), data.get("ozet", "")
 
         except Exception as e:
             err_msg = str(e)
-            if "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg or "quota" in err_msg.lower():
-                bekleme = 60 + (attempt * 30)  # 60, 90, 120, 150 saniye
-                print(f"  → Kota aşıldı (429). {bekleme} saniye bekleniyor... (Deneme {attempt+1}/{max_retries})")
+            if "rate_limit" in err_msg.lower() or "429" in err_msg:
+                bekleme = 20 + (attempt * 15)
+                print(f"  → Rate limit. {bekleme} saniye bekleniyor... (Deneme {attempt+1}/{max_retries})")
                 time.sleep(bekleme)
             else:
                 print(f"  → AI Hatası ({orijinal_baslik[:40]}...): {e}")
@@ -183,14 +180,13 @@ def main():
             print(f"RSS okunamadı: {e}")
             continue
 
-        # Her kaynaktan sadece 4 haber (kota dostu)
-        for entry in feed.entries[:4]:
+        for entry in feed.entries[:5]:  # Her kaynaktan 5 haber
             orijinal_baslik = entry.title.strip()
             link = entry.link
             resim_url = resim_url_al(entry)
             yayin_tarihi = entry.get("published", entry.get("updated", "Tarih Belirtilmedi"))
 
-            # 1. Link zaten var mı?
+            # Link kontrolü
             try:
                 check = supabase.table("haberler").select("id").eq("link", link).execute()
                 if check.data:
@@ -201,12 +197,10 @@ def main():
 
             print(f"\nİşleniyor: {orijinal_baslik[:70]}...")
 
-            # 2. RSS özeti
             rss_metin = entry.get("summary", "") or entry.get("description", "")
             if len(rss_metin) < 80:
                 rss_metin = orijinal_baslik
 
-            # 3. Sayfa içeriği
             sayfa_metni = haber_sayfasindan_icerik_cek(link)
             
             if len(sayfa_metni) > len(rss_metin) + 100:
@@ -216,20 +210,14 @@ def main():
                 icerik = rss_metin
                 print("  → RSS özeti kullanıldı")
 
-            # 4. AI ile işle
             yeni_baslik, ozet = haberi_islemden_gecir(
-                icerik,
-                orijinal_baslik,
-                kategori,
-                yayin_tarihi
+                icerik, orijinal_baslik, kategori, yayin_tarihi
             )
 
-            # 5. Filtre
             if not ozet or "YETERSIZ" in ozet.upper() or len(ozet.strip()) < 2:
                 print(f"  → Atlandı (Yetersiz / Yerel): {orijinal_baslik[:60]}")
                 continue
 
-            # 6. Başlık tekrarı kontrolü
             try:
                 check_title = supabase.table("haberler").select("id").ilike("baslik", f"%{yeni_baslik[:40]}%").execute()
                 if check_title.data:
@@ -238,7 +226,6 @@ def main():
             except:
                 pass
 
-            # 7. Veritabanına ekle
             data = {
                 "baslik": yeni_baslik,
                 "ozet": ozet,
@@ -254,8 +241,7 @@ def main():
             except Exception as e:
                 print(f"  → Veritabanı ekleme hatası: {e}")
 
-            # Kota dostu uzun bekleme
-            time.sleep(random.uniform(8, 12))
+            time.sleep(random.uniform(4, 7))
 
     print("\n\nTüm işlemler tamamlandı.")
 
