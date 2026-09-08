@@ -19,7 +19,8 @@ jobs:
 
       - name: Kütüphaneleri Yükle
         run: |
-          pip install feedparser requests beautifulsoup4 google-genai supabase
+          python -m pip install --upgrade pip
+          python -m pip install feedparser requests beautifulsoup4 google-genai supabase
 
       - name: Botu Çalıştır
         env:
@@ -27,4 +28,3 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python main.py
-
