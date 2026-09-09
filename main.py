@@ -50,16 +50,9 @@ def haber_sayfasindan_icerik_cek(url: str) -> str:
         soup = BeautifulSoup(response.content, "html.parser")
 
         selectors = [
-            "article",
-            ".news-content",
-            ".haber-metni",
-            ".detail-content",
-            ".content-body",
-            ".story-body",
-            ".article-body",
-            "#news-content",
-            ".post-content",
-            "div[itemprop='articleBody']",
+            "article", ".news-content", ".haber-metni", ".detail-content",
+            ".content-body", ".story-body", ".article-body",
+            "#news-content", ".post-content", "div[itemprop='articleBody']",
         ]
 
         for selector in selectors:
@@ -86,42 +79,37 @@ def haber_sayfasindan_icerik_cek(url: str) -> str:
 
 def haberi_islemden_gecir(metin: str, orijinal_baslik: str, kategori: str, yayin_tarihi: str):
     prompt = f"""
-Sen Türkiye'deki haberleri en kısa, net ve aranabilir formatta sunan bir editörsün.
+Sen Türkiye'de yayınlanan haberleri en kısa, net ve bilgilendirici şekilde özetleyen bir editörsün.
 
 YAYIN TARİHİ: {yayin_tarihi}
 KATEGORİ: {kategori}
 
-### KURALLAR
+### TEMEL PRENSİPLER
 
-1. MAÇ / SPOR YAYIN BİLGİLERİ (EN ÖNCELİKLİ)
-   - Saat ve kanal varsa mutlaka çıkar.
-   - Format: "22:00 / TRT 1" veya "9 Eylül 22:00 / beIN Sports"
-   - Bilgi yoksa en net kısa cevabı ver.
+1. BAŞLIK
+   - Mümkün olduğunca düz cümle kullan. Her haberi soruya çevirme.
+   - Sadece gerçekten evet/hayır sorusu mantıklıysa "mı?" kullan.
+   - Deprem, maç sonucu, resmi karar, transfer gibi net olaylarda düz cümle yaz.
+   - Başlık her zaman Türkçe olsun.
 
-2. BAŞLIK KURALLARI
-   - Doğal ve aranabilir olsun.
-   - Haber net bir evet/hayır durumundaysa "mı?" sorusu kullanabilirsin.
-   - Değilse zorlama "mı?" sorusu yapma.
-   - Başlık ve özet MUTLAKA Türkçe olsun. İngilizce yazma.
-
-3. ÖZET KURALLARI (ÇOK ÖNEMLİ)
-   - Mümkün olan en kısa ve somut cevabı ver.
-   - Evet/Hayır durumundaysa sadece "Evet" veya "Hayır" yaz.
-   - Saat/kanal sorusuysa sadece "22:00 / TRT 1" yaz.
-   - Diğer durumlarda maksimum 6 kelime.
-   - Özet, başlığı tekrar etmesin.
-   - Belirsiz ve bilgisiz ifadeler YASAK: "sürpriz", "flaş", "gerçek ortaya çıktı", "son durum", "açıklama yaptı" gibi kelimeler kullanma.
+2. ÖZET (EN ÖNEMLİ KISIM)
+   - Aşırı kısa ve somut olsun (maksimum 6-7 kelime).
+   - Başlığı tekrar etme.
+   - Belirsiz ifadeler yasak: "sürpriz", "flaş", "gerçek ortaya çıktı", "son durum", "açıklama yaptı", "yeni sezon" gibi kelimeler kullanma.
    - Okuyan kişi ne olduğunu net anlasın.
-   - Örnek iyi özetler: "Hayır", "Ekip işten çıkarıldı", "22:00 / TRT 1", "Kadrodan çıkarıldı", "2-1 bitti"
+   - Maç saat/kanal varsa mutlaka yaz (örnek: "22:00 / TRT 1").
+   - Maç skoru varsa skoru yaz (örnek: "2-1", "2-0 bitti").
+   - Deprem varsa şiddetini yaz (örnek: "4.2 büyüklüğünde").
+   - Evet/Hayır durumundaysa sadece "Evet" veya "Hayır" yaz.
 
-4. GENEL
-   - Sadece önemli veya aranabilir haberleri işle.
-   - Çok önemsiz yerel haberlerde ozet alanına "YETERSIZ" yaz.
+3. HANGİ HABERLERİ ATLA
+   - Yaşam tarzı, evde böcek öldürme, nasıl yapılır, çok yerel ve önemsiz haberleri "YETERSIZ" olarak işaretle.
+   - Sadece insanların gerçekten arayacağı veya önemli bulacağı haberleri işle.
 
 Haber Başlığı: {orijinal_baslik}
 Haber İçeriği: {metin}
 
-SADECE şu JSON formatında cevap ver, başka hiçbir şey yazma:
+SADECE şu JSON formatında cevap ver:
 {{
   "baslik": "...",
   "ozet": "..."
@@ -136,22 +124,22 @@ SADECE şu JSON formatında cevap ver, başka hiçbir şey yazma:
                 messages=[
                     {
                         "role": "system",
-                        "content": "Sen sadece geçerli JSON formatında, aşırı kısa ve somut Türkçe cevaplar veren bir haber editörüsün. Özet bilgisiz veya belirsiz olmasın. Asla JSON dışında hiçbir şey yazma."
+                        "content": "Sen sadece geçerli JSON formatında, çok kısa, somut ve Türkçe cevaplar veren bir haber editörüsün. Özet bilgisiz veya belirsiz olmasın. Asla JSON dışında hiçbir şey yazma."
                     },
                     {
                         "role": "user",
                         "content": prompt
                     }
                 ],
-                temperature=0.2,
-                max_tokens=400
+                temperature=0.15,
+                max_tokens=350
             )
 
             raw = completion.choices[0].message.content.strip()
 
             if not raw:
                 print(f"  → AI boş cevap döndü (Deneme {attempt+1})")
-                time.sleep(5)
+                time.sleep(4)
                 continue
 
             # JSON temizleme
@@ -171,7 +159,7 @@ SADECE şu JSON formatında cevap ver, başka hiçbir şey yazma:
         except Exception as e:
             err_msg = str(e)
             if "rate_limit" in err_msg.lower() or "429" in err_msg:
-                bekleme = 15 + (attempt * 10)
+                bekleme = 12 + (attempt * 8)
                 print(f"  → Rate limit. {bekleme} saniye bekleniyor... (Deneme {attempt+1}/{max_retries})")
                 time.sleep(bekleme)
             else:
