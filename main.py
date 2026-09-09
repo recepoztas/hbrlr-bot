@@ -7,6 +7,7 @@ import feedparser
 from bs4 import BeautifulSoup
 from groq import Groq
 from supabase import create_client, Client
+from datetime import datetime
 
 # ====================== ORTAM DEĞİŞKENLERİ ======================
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
@@ -27,10 +28,13 @@ RSS_FEEDS = [
 ]
 
 DEFAULT_IMAGE = "https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=800"
+BURC_IMAGE = "https://images.unsplash.com/photo-1532968967656-8c4c0b0a0b0b?q=80&w=800"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
+
+BURCLAR = ["Koç", "Boğa", "İkizler", "Yengeç", "Aslan", "Başak", "Terazi", "Akrep", "Yay", "Oğlak", "Kova", "Balık"]
 
 # ====================== YARDIMCI FONKSİYONLAR ======================
 def resim_url_al(entry):
@@ -147,7 +151,6 @@ SADECE şu JSON formatında cevap ver:
                 time.sleep(4)
                 continue
 
-            # JSON temizleme
             if "```json" in raw:
                 raw = raw.split("```json")[1].split("```")[0].strip()
             elif "```" in raw:
@@ -175,10 +178,93 @@ SADECE şu JSON formatında cevap ver:
     return orijinal_baslik, None
 
 
+def burc_yorumu_uret(burc_adi: str):
+    """Haftalık burç yorumunu kısa ve kapsamlı şekilde üretir"""
+    prompt = f"""
+Sen profesyonel bir astrologsun. {burc_adi} burcu için bu haftanın yorumunu yaz.
+
+Kurallar:
+- Çok kısa ama kapsamlı olsun (maksimum 12-14 kelime).
+- Aşk, iş/para ve genel enerjiyi tek cümlede özetle.
+- Abartısız, net ve anlaşılır olsun.
+- Sadece Türkçe yaz.
+
+Örnek format:
+"Aşkta netlik arayışı, işte yeni fırsatlar, enerji yüksek tutun."
+
+Sadece yorumu yaz, başka hiçbir şey ekleme.
+"""
+
+    try:
+        completion = client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=[
+                {"role": "system", "content": "Sen kısa, net ve kaliteli haftalık burç yorumu yazan bir astrologsun."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.4,
+            max_tokens=100
+        )
+        return completion.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"  → Burç yorumu hatası ({burc_adi}): {e}")
+        return None
+
+
+def haftalik_burc_yorumlarini_cek():
+    """Her Pazartesi eski burçları siler, yenilerini ekler. Tüm hafta sitede kalır."""
+    bugun = datetime.now()
+    
+    # Sadece Pazartesi günleri çalışsın (0 = Pazartesi)
+    if bugun.weekday() != 0:
+        print("Bugün Pazartesi değil, burç yorumları atlandı.")
+        return
+
+    print("\n=== HAFTALIK BURÇ YORUMLARI GÜNCELLENİYOR ===")
+
+    # 1. Eski burç yorumlarını sil
+    try:
+        supabase.table("haberler").delete().eq("kategori", "Burç").execute()
+        print("  → Eski burç yorumları silindi")
+    except Exception as e:
+        print(f"  → Eski burçları silerken hata: {e}")
+
+    # 2. Yeni yorumları ekle
+    for burc in BURCLAR:
+        print(f"İşleniyor: {burc}...")
+        ozet = burc_yorumu_uret(burc)
+
+        if not ozet or len(ozet) < 10:
+            print(f"  → {burc} yorumu üretilemedi")
+            continue
+
+        data = {
+            "baslik": f"{burc} Burcu Haftalık Yorum",
+            "ozet": ozet,
+            "link": "https://www.milliyet.com.tr/pembenar/haftalik-burc-yorumlari/",
+            "resim_url": BURC_IMAGE,
+            "kategori": "Burç"
+        }
+
+        try:
+            supabase.table("haberler").insert(data).execute()
+            print(f"  ✓ Eklendi → {burc}: {ozet}")
+        except Exception as e:
+            print(f"  → Kayıt hatası ({burc}): {e}")
+
+        time.sleep(random.uniform(3, 5))
+
+    print("=== BURÇ YORUMLARI GÜNCELLENDİ ===\n")
+
+
 # ====================== ANA FONKSİYON ======================
 def main():
     print("Haber toplama işlemi başladı...\n")
 
+    # 1. Haftalık burç yorumlarını kontrol et / güncelle (sadece Pazartesi)
+    haftalik_burc_yorumlarini_cek()
+
+    # 2. Normal haberleri çek
     for feed_info in RSS_FEEDS:
         feed_url = feed_info["url"]
         kategori = feed_info["kategori"]
