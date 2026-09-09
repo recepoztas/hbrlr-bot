@@ -84,27 +84,32 @@ Sen Türkiye'de yayınlanan haberleri en kısa, net ve bilgilendirici şekilde �
 YAYIN TARİHİ: {yayin_tarihi}
 KATEGORİ: {kategori}
 
-### TEMEL PRENSİPLER
+### KURALLAR (ÇOK SIKI UYGULA)
 
 1. BAŞLIK
+   - Kısa, doğal ve aranabilir olsun.
    - Mümkün olduğunca düz cümle kullan. Her haberi soruya çevirme.
-   - Sadece gerçekten evet/hayır sorusu mantıklıysa "mı?" kullan.
-   - Deprem, maç sonucu, resmi karar, transfer gibi net olaylarda düz cümle yaz.
+   - "flaş", "sürpriz", "bomba", "şok", "son dakika" gibi abartılı kelimeleri ASLA kullanma.
    - Başlık her zaman Türkçe olsun.
 
-2. ÖZET (EN ÖNEMLİ KISIM)
-   - Aşırı kısa ve somut olsun (maksimum 6-7 kelime).
-   - Başlığı tekrar etme.
-   - Belirsiz ifadeler yasak: "sürpriz", "flaş", "gerçek ortaya çıktı", "son durum", "açıklama yaptı", "yeni sezon" gibi kelimeler kullanma.
-   - Okuyan kişi ne olduğunu net anlasın.
-   - Maç saat/kanal varsa mutlaka yaz (örnek: "22:00 / TRT 1").
-   - Maç skoru varsa skoru yaz (örnek: "2-1", "2-0 bitti").
-   - Deprem varsa şiddetini yaz (örnek: "4.2 büyüklüğünde").
-   - Evet/Hayır durumundaysa sadece "Evet" veya "Hayır" yaz.
+2. ÖZET (EN KRİTİK KURAL)
+   - Özet, başlıktan DAHA somut ve bilgilendirici olmak zorunda.
+   - Başlık genel durumu söylesin, özet ise en önemli detayı versin.
+   - Özet asla başlığın zayıf bir tekrarı olmasın.
+   - Maksimum 6-7 kelime.
+   - Belirsiz ifadeler yasak.
+   
+   Doğru örnekler:
+   - Başlık: Galatasaray Jankat Yılmaz ile anlaştı
+     Özet: 5 yıllık sözleşme imzalandı
+   - Başlık: Real Madrid Inter'i yendi
+     Özet: 2-1 bitti
+   - Başlık: Kuşadası'nda deprem
+     Özet: 4.2 büyüklüğünde
 
-3. HANGİ HABERLERİ ATLA
-   - Yaşam tarzı, evde böcek öldürme, nasıl yapılır, çok yerel ve önemsiz haberleri "YETERSIZ" olarak işaretle.
-   - Sadece insanların gerçekten arayacağı veya önemli bulacağı haberleri işle.
+3. DİĞER KURALLAR
+   - Maç saat/kanal varsa mutlaka özete yaz (örnek: "22:00 / TRT 1").
+   - Yaşam tarzı, nasıl yapılır, çok yerel haberleri "YETERSIZ" olarak işaretle.
 
 Haber Başlığı: {orijinal_baslik}
 Haber İçeriği: {metin}
@@ -124,7 +129,7 @@ SADECE şu JSON formatında cevap ver:
                 messages=[
                     {
                         "role": "system",
-                        "content": "Sen sadece geçerli JSON formatında, çok kısa, somut ve Türkçe cevaplar veren bir haber editörüsün. Özet bilgisiz veya belirsiz olmasın. Asla JSON dışında hiçbir şey yazma."
+                        "content": "Sen sadece geçerli JSON formatında, çok kısa ve somut Türkçe cevaplar veren bir haber editörüsün. Özet, başlıktan daha bilgilendirici olmak zorunda. 'flaş', 'sürpriz' kelimelerini asla kullanma. Asla JSON dışında hiçbir şey yazma."
                     },
                     {
                         "role": "user",
@@ -191,7 +196,6 @@ def main():
             resim_url = resim_url_al(entry)
             yayin_tarihi = entry.get("published", entry.get("updated", "Tarih Belirtilmedi"))
 
-            # Link kontrolü
             try:
                 check = supabase.table("haberler").select("id").eq("link", link).execute()
                 if check.data:
