@@ -212,12 +212,12 @@ Sadece yorumu yaz, başka hiçbir şey ekleme.
 
 
 def haftalik_burc_yorumlarini_cek():
-    """Her Pazartesi eski burçları siler, yenilerini ekler. Tüm hafta sitede kalır."""
+    """Her Perşembe eski burçları siler, yenilerini ekler. Tüm hafta sitede kalır."""
     bugun = datetime.now()
     
-    # Sadece Pazartesi günleri çalışsın (0 = Pazartesi)
+    # Sadece Perşembe günleri çalışsın (0 = Perşembe)
     if bugun.weekday() != 0:
-        print("Bugün Pazartesi değil, burç yorumları atlandı.")
+        print("Bugün Perşembe değil, burç yorumları atlandı.")
         return
 
     print("\n=== HAFTALIK BURÇ YORUMLARI GÜNCELLENİYOR ===")
@@ -261,7 +261,7 @@ def haftalik_burc_yorumlarini_cek():
 def main():
     print("Haber toplama işlemi başladı...\n")
 
-    # 1. Haftalık burç yorumlarını kontrol et / güncelle (sadece Pazartesi)
+    # 1. Haftalık burç yorumlarını kontrol et / güncelle (sadece Perşembe)
     haftalik_burc_yorumlarini_cek()
 
     # 2. Normal haberleri çek
