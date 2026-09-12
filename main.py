@@ -98,21 +98,19 @@ KATEGORİ: {kategori}
 
 2. ÖZET (EN KRİTİK KURAL)
    - Özet, başlıktan DAHA somut ve bilgilendirici olmak zorunda.
-   - Başlık genel durumu söylesin, özet ise en önemli detayı versin.
+   - Başlık genel durumu söylesin, özet ise haberin en kritik cevabını / sonucunu birkaç kelimeyle versin.
    - Özet asla başlığın zayıf bir tekrarı olmasın.
    - Maksimum 6-7 kelime.
-   - Belirsiz ifadeler yasak.
-   
-   Doğru örnekler:
-   - Başlık: Galatasaray Jankat Yılmaz ile anlaştı
-     Özet: 5 yıllık sözleşme imzalandı
-   - Başlık: Real Madrid Inter'i yendi
-     Özet: 2-1 bitti
-   - Başlık: Kuşadası'nda deprem
-     Özet: 4.2 büyüklüğünde
 
-3. DİĞER KURALLAR
+3. TRANSFER HABERLERİ İÇİN ÖZEL KURAL
+   - Transfer yoksa veya kesinleşmediyse → "Transfer yok"
+   - Transfer varsa → Babasının veya yetkilinin söylediği takımı kısaca yaz
+     Örnekler: "Inter'e gidecek", "Galatasaray'da kalacak", "Gideceği takım belli değil"
+
+4. DİĞER KURALLAR
    - Maç saat/kanal varsa mutlaka özete yaz (örnek: "22:00 / TRT 1").
+   - Maç skoru varsa skoru yaz (örnek: "2-1 bitti").
+   - Deprem varsa şiddetini yaz (örnek: "4.2 büyüklüğünde").
    - Yaşam tarzı, nasıl yapılır, çok yerel haberleri "YETERSIZ" olarak işaretle.
 
 Haber Başlığı: {orijinal_baslik}
@@ -133,7 +131,7 @@ SADECE şu JSON formatında cevap ver:
                 messages=[
                     {
                         "role": "system",
-                        "content": "Sen sadece geçerli JSON formatında, çok kısa ve somut Türkçe cevaplar veren bir haber editörüsün. Özet, başlıktan daha bilgilendirici olmak zorunda. 'flaş', 'sürpriz' kelimelerini asla kullanma. Asla JSON dışında hiçbir şey yazma."
+                        "content": "Sen sadece geçerli JSON formatında, çok kısa ve somut Türkçe cevaplar veren bir haber editörüsün. Özet, başlıktan daha bilgilendirici olmak zorunda. Transfer haberlerinde 'Transfer yok' veya gideceği takımı yaz. 'flaş', 'sürpriz' kelimelerini asla kullanma. Asla JSON dışında hiçbir şey yazma."
                     },
                     {
                         "role": "user",
@@ -179,7 +177,6 @@ SADECE şu JSON formatında cevap ver:
 
 
 def burc_yorumu_uret(burc_adi: str):
-    """Haftalık burç yorumunu kısa ve kapsamlı şekilde üretir"""
     prompt = f"""
 Sen profesyonel bir astrologsun. {burc_adi} burcu için bu haftanın yorumunu yaz.
 
@@ -212,24 +209,21 @@ Sadece yorumu yaz, başka hiçbir şey ekleme.
 
 
 def haftalik_burc_yorumlarini_cek():
-    """Her Perşembe eski burçları siler, yenilerini ekler. Tüm hafta sitede kalır."""
+    """Her Pazartesi eski burçları siler, yenilerini ekler. Tüm hafta sitede kalır."""
     bugun = datetime.now()
     
-    # Sadece Perşembe günleri çalışsın (0 = Perşembe)
-    if bugun.weekday() != 0:
-        print("Bugün Perşembe değil, burç yorumları atlandı.")
+    if bugun.weekday() != 0:  # 0 = Pazartesi
+        print("Bugün Pazartesi değil, burç yorumları atlandı.")
         return
 
     print("\n=== HAFTALIK BURÇ YORUMLARI GÜNCELLENİYOR ===")
 
-    # 1. Eski burç yorumlarını sil
     try:
         supabase.table("haberler").delete().eq("kategori", "Burç").execute()
         print("  → Eski burç yorumları silindi")
     except Exception as e:
         print(f"  → Eski burçları silerken hata: {e}")
 
-    # 2. Yeni yorumları ekle
     for burc in BURCLAR:
         print(f"İşleniyor: {burc}...")
         ozet = burc_yorumu_uret(burc)
@@ -261,7 +255,7 @@ def haftalik_burc_yorumlarini_cek():
 def main():
     print("Haber toplama işlemi başladı...\n")
 
-    # 1. Haftalık burç yorumlarını kontrol et / güncelle (sadece Perşembe)
+    # 1. Haftalık burç yorumlarını kontrol et / güncelle (sadece Pazartesi)
     haftalik_burc_yorumlarini_cek()
 
     # 2. Normal haberleri çek
