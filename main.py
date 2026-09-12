@@ -99,7 +99,9 @@ KATEGORİ: {kategori}
 2. ÖZET (EN KRİTİK KURAL)
    - Özet, başlıktan DAHA somut ve bilgilendirici olmak zorunda.
    - Başlık genel durumu söylesin, özet ise haberin en kritik cevabını / sonucunu birkaç kelimeyle versin.
-   - Özet asla başlığın zayıf bir tekrarı olmasın.
+   - Özet asla başlığın zayıf bir tekrarı veya neredeyse aynı hali olmasın.
+   - Başlık ile özet birbirine çok benzerse, özeti yeniden yaz.
+   - Eğer haberden ek somut bilgi çıkaramıyorsan, o haberi "YETERSIZ" olarak işaretle.
    - Maksimum 6-7 kelime.
 
 3. TRANSFER HABERLERİ İÇİN ÖZEL KURAL
@@ -131,7 +133,7 @@ SADECE şu JSON formatında cevap ver:
                 messages=[
                     {
                         "role": "system",
-                        "content": "Sen sadece geçerli JSON formatında, çok kısa ve somut Türkçe cevaplar veren bir haber editörüsün. Özet, başlıktan daha bilgilendirici olmak zorunda. Transfer haberlerinde 'Transfer yok' veya gideceği takımı yaz. 'flaş', 'sürpriz' kelimelerini asla kullanma. Asla JSON dışında hiçbir şey yazma."
+                        "content": "Sen sadece geçerli JSON formatında, çok kısa ve somut Türkçe cevaplar veren bir haber editörüsün. Özet, başlıktan belirgin şekilde farklı ve daha bilgilendirici olmak zorunda. Benzerlik varsa YETERSIZ yaz. Transfer haberlerinde 'Transfer yok' veya gideceği takımı yaz. 'flaş', 'sürpriz' kelimelerini asla kullanma. Asla JSON dışında hiçbir şey yazma."
                     },
                     {
                         "role": "user",
