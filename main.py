@@ -23,6 +23,8 @@ RSS_FEEDS = [
     {"url": "https://www.cnnturk.com/feed/rss/all/news", "kategori": "Gündem"},
     {"url": "https://www.fotomac.com.tr/rss/anasayfa.xml", "kategori": "Spor"},
     {"url": "https://www.fanatik.com.tr/rss/anasayfa", "kategori": "Spor"},
+    {"url": "https://www.halktv.com.tr/rss", "kategori": "Gündem"},
+    {"url": "https://www.sporx.com/rss", "kategori": "Spor"},
     {"url": "https://www.bloomberght.com/rss", "kategori": "Ekonomi"},
     {"url": "https://www.donanimhaber.com/rss/tum/", "kategori": "Teknoloji"},
 ]
