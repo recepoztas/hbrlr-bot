@@ -104,7 +104,7 @@ KATEGORİ: {kategori}
    - Özet asla başlığın zayıf bir tekrarı veya neredeyse aynı hali olmasın.
    - Başlık ile özet birbirine çok benzerse, özeti yeniden yaz.
    - Eğer haberden ek somut bilgi çıkaramıyorsan, o haberi "YETERSIZ" olarak işaretle.
-   - Maksimum 6-7 kelime.
+   - Maksimum 15-20 kelime.
 
 3. TRANSFER HABERLERİ İÇİN ÖZEL KURAL
    - Transfer yoksa veya kesinleşmediyse → "Transfer yok"
