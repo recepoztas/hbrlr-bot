@@ -32,6 +32,9 @@ RSS_FEEDS = [
 DEFAULT_IMAGE = "https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=800"
 BURC_IMAGE = "https://images.unsplash.com/photo-1532968967656-8c4c0b0a0b0b?q=80&w=800"
 
+# DEĞİŞTİRİLEN MODEL: Türkçe gazetecilik kalitesi için daha güçlü model
+GROQ_MODEL = "llama-3.3-70b-versatile"
+
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 }
@@ -39,22 +42,35 @@ HEADERS = {
 BURCLAR = ["Koç", "Boğa", "İkizler", "Yengeç", "Aslan", "Başak", "Terazi", "Akrep", "Yay", "Oğlak", "Kova", "Balık"]
 
 # ====================== YARDIMCI FONKSİYONLAR ======================
-def resim_url_al(entry):
+def rss_ten_resim_al(entry):
+    """1. kaynak: RSS içindeki görsel alanları"""
     if "media_content" in entry and len(entry.media_content) > 0:
-        return entry.media_content[0].get("url", DEFAULT_IMAGE)
+        return entry.media_content[0].get("url")
     if "enclosures" in entry and len(entry.enclosures) > 0:
         for enc in entry.enclosures:
             if enc.get("type", "").startswith("image/"):
-                return enc.get("href", DEFAULT_IMAGE)
-    return DEFAULT_IMAGE
+                return enc.get("href")
+    return None
 
 
-def haber_sayfasindan_icerik_cek(url: str) -> str:
+def sayfa_detay_cek(url: str):
+    """YENİ: Hem metni hem og:image görselini tek seferde çeker.
+    Dönen değer: (metin, resim_url)"""
     try:
         response = requests.get(url, headers=HEADERS, timeout=10)
         response.raise_for_status()
         soup = BeautifulSoup(response.content, "html.parser")
 
+        # --- Görsel: og:image meta etiketinden al ---
+        resim_url = None
+        og = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
+        if og and og.get("content"):
+            resim_url = og["content"]
+            if resim_url.startswith("/"):  # eksik domain tamamla
+                from urllib.parse import urljoin
+                resim_url = urljoin(url, resim_url)
+
+        # --- Metin: makale gövdesini bul ---
         selectors = [
             "article", ".news-content", ".haber-metni", ".detail-content",
             ".content-body", ".story-body", ".article-body",
@@ -68,54 +84,46 @@ def haber_sayfasindan_icerik_cek(url: str) -> str:
                     tag.decompose()
                 text = element.get_text(separator=" ", strip=True)
                 if len(text) > 150:
-                    return text[:4000]
+                    return text[:4000], resim_url
 
         body = soup.find("body")
         if body:
             for tag in body(["script", "style", "nav", "footer", "header", "aside"]):
                 tag.decompose()
             text = body.get_text(separator=" ", strip=True)
-            return text[:3500]
+            return text[:3500], resim_url
 
     except Exception as e:
         print(f"  → Sayfa çekilemedi ({url[:60]}...): {e}")
-    
-    return ""
+
+    return "", None
 
 
 def haberi_islemden_gecir(metin: str, orijinal_baslik: str, kategori: str, yayin_tarihi: str):
     prompt = f"""
-Sen Türkiye'de yayınlanan haberleri en kısa, net ve bilgilendirici şekilde özetleyen bir editörsün.
+Sen Türkiye'nin önde gelen haber sitelerinde çalışan, deneyimli bir haber editörüsün.
+Kaynaktaki ham haberi okuyup sitede yayınlanacak hâle getiriyorsun.
 
 YAYIN TARİHİ: {yayin_tarihi}
 KATEGORİ: {kategori}
 
-### KURALLAR (ÇOK SIKI UYGULA)
+### KURALLAR
 
 1. BAŞLIK
-   - Kısa, doğal ve aranabilir olsun.
-   - Mümkün olduğunca düz cümle kullan. Her haberi soruya çevirme.
-   - "flaş", "sürpriz", "bomba", "şok", "son dakika" gibi abartılı kelimeleri ASLA kullanma.
-   - Başlık her zaman Türkçe olsun.
+   - 8-12 kelime, akıcı ve doğal Türkçe.
+   - "flaş", "bomba", "şok", "sürpriz", "son dakika" gibi abartılı kelimeleri ASLA kullanma.
+   - Her haberi soru cümlesi yapma; düz ve net anlat.
 
-2. ÖZET (EN KRİTİK KURAL)
-   - Özet, başlıktan DAHA somut ve bilgilendirici olmak zorunda.
-   - Başlık genel durumu söylesin, özet ise haberin en kritik cevabını / sonucunu birkaç kelimeyle versin.
-   - Özet asla başlığın zayıf bir tekrarı veya neredeyse aynı hali olmasın.
-   - Başlık ile özet birbirine çok benzerse, özeti yeniden yaz.
-   - Eğer haberden ek somut bilgi çıkaramıyorsan, o haberi "YETERSIZ" olarak işaretle.
-   - Maksimum 15-20 kelime.
+2. ÖZET (en kritik kural)
+   - 15-20 kelime, tek paragraf.
+   - Başlığın tekrarı olmasın; başlıkta olmayan somut bilgiyi ver
+     (kim, ne, ne zaman, rakam, sonuç).
+   - Doğal gazetecilik dili kullan; çeviri kokan, robot gibi cümleler kurma.
+   - Örnek doğru cümle: "Fenerbahçe, sözleşmesi bitecek oyuncuyla yeniden masaya oturacak."
+   - Ek bilgi çıkaramıyorsan "YETERSIZ" yaz.
 
-3. TRANSFER HABERLERİ İÇİN ÖZEL KURAL
-   - Transfer yoksa veya kesinleşmediyse → "Transfer yok"
-   - Transfer varsa → Babasının veya yetkilinin söylediği takımı kısaca yaz
-     Örnekler: "Inter'e gidecek", "Galatasaray'da kalacak", "Gideceği takım belli değil"
-
-4. DİĞER KURALLAR
-   - Maç saat/kanal varsa mutlaka özete yaz (örnek: "22:00 / TRT 1").
-   - Maç skoru varsa skoru yaz (örnek: "2-1 bitti").
-   - Deprem varsa şiddetini yaz (örnek: "4.2 büyüklüğünde").
-   - Yaşam tarzı, nasıl yapılır, çok yerel haberleri "YETERSIZ" olarak işaretle.
+3. ÖZEL DURUMLAR
+   - Maç varsa saat/kanal, deprem varsa büyüklük, transfer varsa kesin bilgi yoksa "Transfer yok".
 
 Haber Başlığı: {orijinal_baslik}
 Haber İçeriği: {metin}
@@ -131,18 +139,15 @@ SADECE şu JSON formatında cevap ver:
     for attempt in range(max_retries):
         try:
             completion = client.chat.completions.create(
-                model="openai/gpt-oss-20b",
+                model=GROQ_MODEL,
                 messages=[
                     {
                         "role": "system",
-                        "content": "Sen sadece geçerli JSON formatında, çok kısa ve somut Türkçe cevaplar veren bir haber editörüsün. Özet, başlıktan belirgin şekilde farklı ve daha bilgilendirici olmak zorunda. Benzerlik varsa YETERSIZ yaz. Transfer haberlerinde 'Transfer yok' veya gideceği takımı yaz. 'flaş', 'sürpriz' kelimelerini asla kullanma. Asla JSON dışında hiçbir şey yazma."
+                        "content": "Sen deneyimli bir Türk haber editörüsün. Cevabın HER ZAMAN geçerli JSON formatında olur. Türkçe gazetecilik dilini kullanırsın: kısa, net, doğal ve çeviri kokmayan cümleler. Abartılı kelimeler kullanmazsın. Başlık ve özet birbirinden farklı olur; özet daha somut bilgi içerir."
                     },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
+                    {"role": "user", "content": prompt}
                 ],
-                temperature=0.15,
+                temperature=0.2,
                 max_tokens=350
             )
 
@@ -198,7 +203,7 @@ Sadece yorumu yaz, başka hiçbir şey ekleme.
 
     try:
         completion = client.chat.completions.create(
-            model="openai/gpt-oss-20b",
+            model=GROQ_MODEL,
             messages=[
                 {"role": "system", "content": "Sen kısa, net ve kaliteli haftalık burç yorumu yazan bir astrologsun."},
                 {"role": "user", "content": prompt}
@@ -213,9 +218,7 @@ Sadece yorumu yaz, başka hiçbir şey ekleme.
 
 
 def haftalik_burc_yorumlarini_cek():
-    """Her Pazartesi eski burçları siler, yenilerini ekler. Tüm hafta sitede kalır."""
     bugun = datetime.now()
-    
     if bugun.weekday() != 0:  # 0 = Pazartesi
         print("Bugün Pazartesi değil, burç yorumları atlandı.")
         return
@@ -259,10 +262,8 @@ def haftalik_burc_yorumlarini_cek():
 def main():
     print("Haber toplama işlemi başladı...\n")
 
-    # 1. Haftalık burç yorumlarını kontrol et / güncelle (sadece Pazartesi)
     haftalik_burc_yorumlarini_cek()
 
-    # 2. Normal haberleri çek
     for feed_info in RSS_FEEDS:
         feed_url = feed_info["url"]
         kategori = feed_info["kategori"]
@@ -277,8 +278,6 @@ def main():
         for entry in feed.entries[:5]:
             orijinal_baslik = entry.title.strip()
             link = entry.link
-            resim_url = resim_url_al(entry)
-            yayin_tarihi = entry.get("published", entry.get("updated", "Tarih Belirtilmedi"))
 
             try:
                 check = supabase.table("haberler").select("id").eq("link", link).execute()
@@ -290,12 +289,28 @@ def main():
 
             print(f"\nİşleniyor: {orijinal_baslik[:70]}...")
 
+            # 1. önce RSS'ten görsel dene
+            resim_url = rss_ten_resim_al(entry)
+
+            # 2. sayfayı çek: metin + og:image
+            sayfa_metni, sayfa_resmi = sayfa_detay_cek(link)
+
+            # 3. görsel hâlâ yoksa og:image'i kullan
+            if not resim_url and sayfa_resmi:
+                resim_url = sayfa_resmi
+                print("  → Görsel sayfadaki og:image'den alındı")
+
+            # 4. hiçbiri yoksa yedek görsel
+            if not resim_url:
+                resim_url = DEFAULT_IMAGE
+                print("  → Görsel bulunamadı, yedek kullanıldı")
+
+            yayin_tarihi = entry.get("published", entry.get("updated", "Tarih Belirtilmedi"))
+
             rss_metin = entry.get("summary", "") or entry.get("description", "")
             if len(rss_metin) < 80:
                 rss_metin = orijinal_baslik
 
-            sayfa_metni = haber_sayfasindan_icerik_cek(link)
-            
             if len(sayfa_metni) > len(rss_metin) + 100:
                 icerik = sayfa_metni
                 print("  → Sayfa içeriği kullanıldı")
@@ -341,3 +356,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
