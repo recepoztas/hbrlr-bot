@@ -38,7 +38,7 @@ MODEL_LIST = [
 
     "openai/gpt-oss-120b",
     "openai/gpt-oss-20b",
-    "llama-3.3-70b-versatile",
+    "qwen/qwen3.8-27b",
 ]
 
 HEADERS = {
