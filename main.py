@@ -32,8 +32,14 @@ RSS_FEEDS = [
 DEFAULT_IMAGE = "https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=800"
 BURC_IMAGE = "https://images.unsplash.com/photo-1532968967656-8c4c0b0a0b0b?q=80&w=800"
 
-# DEĞİŞTİRİLEN MODEL: Türkçe gazetecilik kalitesi için daha güçlü model
-GROQ_MODEL = "llama-3.3-70b-versatile"
+# MODEL LİSTESİ: Yukarıdan aşağı denenir, biri çalışmayınca diğerine geçer.
+# Böylece Groq bir modeli kaldırsa bile bot kendini kurtarır.
+MODEL_LIST = [
+
+    "openai/gpt-oss-120b",
+    "openai/gpt-oss-20b",
+    "llama-3.3-70b-versatile",
+]
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -41,9 +47,29 @@ HEADERS = {
 
 BURCLAR = ["Koç", "Boğa", "İkizler", "Yengeç", "Aslan", "Başak", "Terazi", "Akrep", "Yay", "Oğlak", "Kova", "Balık"]
 
+
+def groq_istegi_gonder(messages, temperature, max_tokens, islem_adi=""):
+    """Tüm modelleri sırayla dener. Hepsi başarısız olursa None döner."""
+    for model in MODEL_LIST:
+        try:
+            completion = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens
+            )
+            icerik = completion.choices[0].message.content
+            if icerik and icerik.strip():
+                return icerik.strip()
+        except Exception as e:
+            print(f"  → {model} hatası ({islem_adi}): {str(e)[:120]}")
+            time.sleep(3)
+    print(f"  → TÜM MODELLER BAŞARISIZ ({islem_adi})")
+    return None
+
+
 # ====================== YARDIMCI FONKSİYONLAR ======================
 def rss_ten_resim_al(entry):
-    """1. kaynak: RSS içindeki görsel alanları"""
     if "media_content" in entry and len(entry.media_content) > 0:
         return entry.media_content[0].get("url")
     if "enclosures" in entry and len(entry.enclosures) > 0:
@@ -54,23 +80,20 @@ def rss_ten_resim_al(entry):
 
 
 def sayfa_detay_cek(url: str):
-    """YENİ: Hem metni hem og:image görselini tek seferde çeker.
-    Dönen değer: (metin, resim_url)"""
+    """Hem metni hem og:image görselini tek seferde çeker."""
     try:
         response = requests.get(url, headers=HEADERS, timeout=10)
         response.raise_for_status()
         soup = BeautifulSoup(response.content, "html.parser")
 
-        # --- Görsel: og:image meta etiketinden al ---
         resim_url = None
         og = soup.find("meta", property="og:image") or soup.find("meta", attrs={"name": "og:image"})
         if og and og.get("content"):
             resim_url = og["content"]
-            if resim_url.startswith("/"):  # eksik domain tamamla
+            if resim_url.startswith("/"):
                 from urllib.parse import urljoin
                 resim_url = urljoin(url, resim_url)
 
-        # --- Metin: makale gövdesini bul ---
         selectors = [
             "article", ".news-content", ".haber-metni", ".detail-content",
             ".content-body", ".story-body", ".article-body",
@@ -111,19 +134,30 @@ KATEGORİ: {kategori}
 
 1. BAŞLIK
    - 8-12 kelime, akıcı ve doğal Türkçe.
-   - "flaş", "bomba", "şok", "sürpriz", "son dakika" gibi abartılı kelimeleri ASLA kullanma.
+   - "flaş", "bomba", "şok", "sürpriz", "son dakika" kelimelerini ASLA kullanma.
    - Her haberi soru cümlesi yapma; düz ve net anlat.
 
 2. ÖZET (en kritik kural)
-   - 15-20 kelime, tek paragraf.
-   - Başlığın tekrarı olmasın; başlıkta olmayan somut bilgiyi ver
-     (kim, ne, ne zaman, rakam, sonuç).
-   - Doğal gazetecilik dili kullan; çeviri kokan, robot gibi cümleler kurma.
-   - Örnek doğru cümle: "Fenerbahçe, sözleşmesi bitecek oyuncuyla yeniden masaya oturacak."
+   - 18-25 kelime, tek paragraf.
+   - BAĞLAM KURALI: Özeti, haberi HİÇ bilmeyen bir okuyucu için yaz.
+     İsim geçen kişi, takım veya olay ilk kez anılıyorsa, cümle içinde
+     kısaca kim/ney olduğunu açıkla.
+     DOĞRU:  "Milan'ın efsane kaptanı Baresi'nin duvar resmine yapılan saldırıyı
+              eski kaleci Zenga kınadı."
+     YANLIŞ: "Baresi'nin duvar resmine saldırıya Zenga tepki verdi."
+     (Baresi'nin kim olduğunu bilmeyen okuyucu anlayamaz.)
+   - ASLA başlığın farklı söylenmiş hâlini yazma. Özet yeni, somut bilgi içersin.
+     DOĞRU:  "Fenerbahçe, sözleşmesi bitecek olan oyuncunun satın alma
+              opsiyonunu devreye sokacak."
+     YANLIŞ: "Fenerbahçe transfer opsiyonunu kullanarak yeni oyuncu alacak."
+     (Bu, başlığın tekrarıdır; bilgi sıfır.)
+   - Grup içi hatalar olmasın: "pompala tüfekle", "polis eline geçince" gibi
+     bozuk cümleler kurma. Anadili gibi doğru Türkçe yaz.
    - Ek bilgi çıkaramıyorsan "YETERSIZ" yaz.
 
 3. ÖZEL DURUMLAR
-   - Maç varsa saat/kanal, deprem varsa büyüklük, transfer varsa kesin bilgi yoksa "Transfer yok".
+   - Maç varsa saat/kanal, deprem varsa büyüklük.
+   - TRANSFER: Özette oyuncu ADI ve takım ADI geçmeli. Kesin bilgi yoksa YETERSIZ.
 
 Haber Başlığı: {orijinal_baslik}
 Haber İçeriği: {metin}
@@ -135,29 +169,23 @@ SADECE şu JSON formatında cevap ver:
 }}
 """
 
-    max_retries = 3
-    for attempt in range(max_retries):
+    system_msg = {
+        "role": "system",
+        "content": ("Sen deneyimli bir Türk haber editörüsün. Cevabın HER ZAMAN geçerli JSON formatında olur. "
+                    "Özetin; haberi hiç bilmeyen biri tarafından anlaşılabilir olması şarttır: geçen isimlerin "
+                    "kim olduğu cümle içinde kısaca belli olur. Özet asla başlığın tekrarı olmaz, daima yeni somut "
+                    "bilgi taşır. Ana dilindeki gibi doğru, akıcı Türkçe kullanırsın. Abartılı kelimeler kullanmazsın.")
+    }
+
+    for deneme in range(3):
+        raw = groq_istegi_gonder(
+            [system_msg, {"role": "user", "content": prompt}],
+            temperature=0.2, max_tokens=350, islem_adi=f"özet: {orijinal_baslik[:40]}"
+        )
+        if raw is None:
+            return orijinal_baslik, None
+
         try:
-            completion = client.chat.completions.create(
-                model=GROQ_MODEL,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "Sen deneyimli bir Türk haber editörüsün. Cevabın HER ZAMAN geçerli JSON formatında olur. Türkçe gazetecilik dilini kullanırsın: kısa, net, doğal ve çeviri kokmayan cümleler. Abartılı kelimeler kullanmazsın. Başlık ve özet birbirinden farklı olur; özet daha somut bilgi içerir."
-                    },
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.2,
-                max_tokens=350
-            )
-
-            raw = completion.choices[0].message.content.strip()
-
-            if not raw:
-                print(f"  → AI boş cevap döndü (Deneme {attempt+1})")
-                time.sleep(4)
-                continue
-
             if "```json" in raw:
                 raw = raw.split("```json")[1].split("```")[0].strip()
             elif "```" in raw:
@@ -172,15 +200,8 @@ SADECE şu JSON formatında cevap ver:
             return data.get("baslik", orijinal_baslik), data.get("ozet", "")
 
         except Exception as e:
-            err_msg = str(e)
-            if "rate_limit" in err_msg.lower() or "429" in err_msg:
-                bekleme = 12 + (attempt * 8)
-                print(f"  → Rate limit. {bekleme} saniye bekleniyor... (Deneme {attempt+1}/{max_retries})")
-                time.sleep(bekleme)
-            else:
-                print(f"  → AI Hatası ({orijinal_baslik[:40]}...): {e}")
-                time.sleep(3)
-                continue
+            print(f"  → JSON çözümlenemedi, tekrar deneniyor: {e}")
+            time.sleep(3)
 
     return orijinal_baslik, None
 
@@ -195,31 +216,20 @@ Kurallar:
 - Abartısız, net ve anlaşılır olsun.
 - Sadece Türkçe yaz.
 
-Örnek format:
-"Aşkta netlik arayışı, işte yeni fırsatlar, enerji yüksek tutun."
-
 Sadece yorumu yaz, başka hiçbir şey ekleme.
 """
-
-    try:
-        completion = client.chat.completions.create(
-            model=GROQ_MODEL,
-            messages=[
-                {"role": "system", "content": "Sen kısa, net ve kaliteli haftalık burç yorumu yazan bir astrologsun."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.4,
-            max_tokens=100
-        )
-        return completion.choices[0].message.content.strip()
-    except Exception as e:
-        print(f"  → Burç yorumu hatası ({burc_adi}): {e}")
-        return None
+    return groq_istegi_gonder(
+        [
+            {"role": "system", "content": "Sen kısa, net ve kaliteli haftalık burç yorumu yazan bir astrologsun."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.4, max_tokens=100, islem_adi=f"burç: {burc_adi}"
+    )
 
 
 def haftalik_burc_yorumlarini_cek():
     bugun = datetime.now()
-    if bugun.weekday() != 0:  # 0 = Pazartesi
+    if bugun.weekday() != 0:
         print("Bugün Pazartesi değil, burç yorumları atlandı.")
         return
 
@@ -289,18 +299,12 @@ def main():
 
             print(f"\nİşleniyor: {orijinal_baslik[:70]}...")
 
-            # 1. önce RSS'ten görsel dene
             resim_url = rss_ten_resim_al(entry)
-
-            # 2. sayfayı çek: metin + og:image
             sayfa_metni, sayfa_resmi = sayfa_detay_cek(link)
 
-            # 3. görsel hâlâ yoksa og:image'i kullan
             if not resim_url and sayfa_resmi:
                 resim_url = sayfa_resmi
                 print("  → Görsel sayfadaki og:image'den alındı")
-
-            # 4. hiçbiri yoksa yedek görsel
             if not resim_url:
                 resim_url = DEFAULT_IMAGE
                 print("  → Görsel bulunamadı, yedek kullanıldı")
