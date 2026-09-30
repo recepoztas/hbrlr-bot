@@ -48,24 +48,33 @@ HEADERS = {
 BURCLAR = ["Koç", "Boğa", "İkizler", "Yengeç", "Aslan", "Başak", "Terazi", "Akrep", "Yay", "Oğlak", "Kova", "Balık"]
 
 
+
 def groq_istegi_gonder(messages, temperature, max_tokens, islem_adi=""):
-    """Tüm modelleri sırayla dener. Hepsi başarısız olursa None döner."""
+    """Tüm modelleri sırayla dener. 429 (limit) alırsa 60 sn bekleyip aynı modeli tekrar dener."""
     for model in MODEL_LIST:
-        try:
-            completion = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens
-            )
-            icerik = completion.choices[0].message.content
-            if icerik and icerik.strip():
-                return icerik.strip()
-        except Exception as e:
-            print(f" → {model} hatası ({islem_adi}): {str(e)[:120]}")
-            time.sleep(3)
+        for deneme in range(2): # her model için 2 şans (limit dolarsa bekle)
+            try:
+                completion = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+                icerik = completion.choices[0].message.content
+                if icerik and icerik.strip():
+                    return icerik.strip()
+            except Exception as e:
+                if "429" in str(e) or "rate_limit" in str(e).lower():
+                    print(f" → {model} limit dolu, 60 sn bekleniyor... ({islem_adi})")
+                    time.sleep(60)
+                else:
+                    print(f" → {model} hatası ({islem_adi}): {str(e)[:120]}")
+                    time.sleep(3)
+                    break # limit dışı hata: sonraki modele geç
     print(f" → TÜM MODELLER BAŞARISIZ ({islem_adi})")
     return None
+
+
 
 
 # ====================== YARDIMCI FONKSİYONLAR ======================
