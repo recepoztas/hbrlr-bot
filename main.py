@@ -1,4 +1,4 @@
-import os
+code = r'''import os
 import time
 import json
 import random
@@ -62,9 +62,9 @@ def groq_istegi_gonder(messages, temperature, max_tokens, islem_adi=""):
             if icerik and icerik.strip():
                 return icerik.strip()
         except Exception as e:
-            print(f"  → {model} hatası ({islem_adi}): {str(e)[:120]}")
+            print(f" → {model} hatası ({islem_adi}): {str(e)[:120]}")
             time.sleep(3)
-    print(f"  → TÜM MODELLER BAŞARISIZ ({islem_adi})")
+    print(f" → TÜM MODELLER BAŞARISIZ ({islem_adi})")
     return None
 
 
@@ -117,7 +117,7 @@ def sayfa_detay_cek(url: str):
             return text[:3500], resim_url
 
     except Exception as e:
-        print(f"  → Sayfa çekilemedi ({url[:60]}...): {e}")
+        print(f" → Sayfa çekilemedi ({url[:60]}...): {e}")
 
     return "", None
 
@@ -142,12 +142,12 @@ KATEGORİ: {kategori}
    - BAĞLAM KURALI: Özeti, haberi HİÇ bilmeyen bir okuyucu için yaz.
      İsim geçen kişi, takım veya olay ilk kez anılıyorsa, cümle içinde
      kısaca kim/ney olduğunu açıkla.
-     DOĞRU:  "Milan'ın efsane kaptanı Baresi'nin duvar resmine yapılan saldırıyı
+     DOĞRU: "Milan'ın efsane kaptanı Baresi'nin duvar resmine yapılan saldırıyı
               eski kaleci Zenga kınadı."
      YANLIŞ: "Baresi'nin duvar resmine saldırıya Zenga tepki verdi."
      (Baresi'nin kim olduğunu bilmeyen okuyucu anlayamaz.)
    - ASLA başlığın farklı söylenmiş hâlini yazma. Özet yeni, somut bilgi içersin.
-     DOĞRU:  "Fenerbahçe, sözleşmesi bitecek olan oyuncunun satın alma
+     DOĞRU: "Fenerbahçe, sözleşmesi bitecek olan oyuncunun satın alma
               opsiyonunu devreye sokacak."
      YANLIŞ: "Fenerbahçe transfer opsiyonunu kullanarak yeni oyuncu alacak."
      (Bu, başlığın tekrarıdır; bilgi sıfır.)
@@ -200,7 +200,7 @@ SADECE şu JSON formatında cevap ver:
             return data.get("baslik", orijinal_baslik), data.get("ozet", "")
 
         except Exception as e:
-            print(f"  → JSON çözümlenemedi, tekrar deneniyor: {e}")
+            print(f" → JSON çözümlenemedi, tekrar deneniyor: {e}")
             time.sleep(3)
 
     return orijinal_baslik, None
@@ -229,24 +229,41 @@ Sadece yorumu yaz, başka hiçbir şey ekleme.
 
 def haftalik_burc_yorumlarini_cek():
     bugun = datetime.now()
-    if bugun.weekday() != 0:
-        print("Bugün Pazartesi değil, burç yorumları atlandı.")
+    pazartesi_mi = (bugun.weekday() == 0)
+
+    # Veritabanında burç yorumu var mı kontrol et
+    burc_var_mi = False
+    try:
+        mevcut = supabase.table("haberler").select("id").eq("kategori", "Burç").limit(1).execute()
+        burc_var_mi = len(mevcut.data) > 0
+    except Exception as e:
+        print(f"Burç kontrol hatası: {e}")
+        burc_var_mi = True # emin olamazsak mevcut olanı korumak için
+
+    if not pazartesi_mi and burc_var_mi:
+        print("Burç yorumları zaten mevcut, atlandı.")
         return
+
+    if not burc_var_mi:
+        print("Veritabanında burç yorumu yok, hemen üretiliyor...")
+    else:
+        print("Pazartesi: burç yorumları yenileniyor...")
 
     print("\n=== HAFTALIK BURÇ YORUMLARI GÜNCELLENİYOR ===")
 
-    try:
-        supabase.table("haberler").delete().eq("kategori", "Burç").execute()
-        print("  → Eski burç yorumları silindi")
-    except Exception as e:
-        print(f"  → Eski burçları silerken hata: {e}")
+    if burc_var_mi:
+        try:
+            supabase.table("haberler").delete().eq("kategori", "Burç").execute()
+            print(" → Eski burç yorumları silindi")
+        except Exception as e:
+            print(f" → Eski burçları silerken hata: {e}")
 
     for burc in BURCLAR:
         print(f"İşleniyor: {burc}...")
         ozet = burc_yorumu_uret(burc)
 
         if not ozet or len(ozet) < 10:
-            print(f"  → {burc} yorumu üretilemedi")
+            print(f" → {burc} yorumu üretilemedi")
             continue
 
         data = {
@@ -259,9 +276,9 @@ def haftalik_burc_yorumlarini_cek():
 
         try:
             supabase.table("haberler").insert(data).execute()
-            print(f"  ✓ Eklendi → {burc}: {ozet}")
+            print(f" ✓ Eklendi → {burc}: {ozet}")
         except Exception as e:
-            print(f"  → Kayıt hatası ({burc}): {e}")
+            print(f" → Kayıt hatası ({burc}): {e}")
 
         time.sleep(random.uniform(3, 5))
 
@@ -304,10 +321,10 @@ def main():
 
             if not resim_url and sayfa_resmi:
                 resim_url = sayfa_resmi
-                print("  → Görsel sayfadaki og:image'den alındı")
+                print(" → Görsel sayfadaki og:image'den alındı")
             if not resim_url:
                 resim_url = DEFAULT_IMAGE
-                print("  → Görsel bulunamadı, yedek kullanıldı")
+                print(" → Görsel bulunamadı, yedek kullanıldı")
 
             yayin_tarihi = entry.get("published", entry.get("updated", "Tarih Belirtilmedi"))
 
@@ -317,23 +334,23 @@ def main():
 
             if len(sayfa_metni) > len(rss_metin) + 100:
                 icerik = sayfa_metni
-                print("  → Sayfa içeriği kullanıldı")
+                print(" → Sayfa içeriği kullanıldı")
             else:
                 icerik = rss_metin
-                print("  → RSS özeti kullanıldı")
+                print(" → RSS özeti kullanıldı")
 
             yeni_baslik, ozet = haberi_islemden_gecir(
                 icerik, orijinal_baslik, kategori, yayin_tarihi
             )
 
             if not ozet or "YETERSIZ" in ozet.upper() or len(ozet.strip()) < 2:
-                print(f"  → Atlandı (Yetersiz / Yerel): {orijinal_baslik[:60]}")
+                print(f" → Atlandı (Yetersiz / Yerel): {orijinal_baslik[:60]}")
                 continue
 
             try:
                 check_title = supabase.table("haberler").select("id").ilike("baslik", f"%{yeni_baslik[:40]}%").execute()
                 if check_title.data:
-                    print(f"  → Tekrar eden başlık atlandı: {yeni_baslik}")
+                    print(f" → Tekrar eden başlık atlandı: {yeni_baslik}")
                     continue
             except:
                 pass
@@ -348,10 +365,10 @@ def main():
 
             try:
                 supabase.table("haberler").insert(data).execute()
-                print(f"  ✓ Eklendi → Başlık: {yeni_baslik}")
-                print(f"             Özet  : {ozet}")
+                print(f" ✓ Eklendi → Başlık: {yeni_baslik}")
+                print(f" Özet : {ozet}")
             except Exception as e:
-                print(f"  → Veritabanı ekleme hatası: {e}")
+                print(f" → Veritabanı ekleme hatası: {e}")
 
             time.sleep(random.uniform(4, 7))
 
@@ -360,4 +377,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+'''
 
+with open('/mnt/agents/output/main.py', 'w', encoding='utf-8') as f:
+    f.write(code)
+print("ok", len(code))
