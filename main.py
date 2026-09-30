@@ -1,4 +1,4 @@
-code = r'''import os
+import os
 import time
 import json
 import random
@@ -377,8 +377,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-'''
-
-with open('/mnt/agents/output/main.py', 'w', encoding='utf-8') as f:
-    f.write(code)
-print("ok", len(code))
