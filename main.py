@@ -1,3 +1,4 @@
+
 import os
 import time
 import json
@@ -142,31 +143,32 @@ KATEGORİ: {kategori}
 ### KURALLAR
 
 1. BAŞLIK
-   - 8-12 kelime, akıcı ve doğal Türkçe.
+   - 8-13 kelime, akıcı ve doğal Türkçe.
    - "flaş", "bomba", "şok", "sürpriz", "son dakika" kelimelerini ASLA kullanma.
    - Her haberi soru cümlesi yapma; düz ve net anlat.
 
 2. ÖZET (en kritik kural)
-   - 18-25 kelime, tek paragraf.
+   - 28-42 kelime, tek paragraf.
    - BAĞLAM KURALI: Özeti, haberi HİÇ bilmeyen bir okuyucu için yaz.
      İsim geçen kişi, takım veya olay ilk kez anılıyorsa, cümle içinde
      kısaca kim/ney olduğunu açıkla.
-     DOĞRU: "Milan'ın efsane kaptanı Baresi'nin duvar resmine yapılan saldırıyı
-              eski kaleci Zenga kınadı."
+     DOĞRU: "Milan'ın efsane kaptanı Franco Baresi'nin duvar resmine yapılan saldırıyı
+              eski kaleci Walter Zenga kınadı."
      YANLIŞ: "Baresi'nin duvar resmine saldırıya Zenga tepki verdi."
-     (Baresi'nin kim olduğunu bilmeyen okuyucu anlayamaz.)
+
    - ASLA başlığın farklı söylenmiş hâlini yazma. Özet yeni, somut bilgi içersin.
-     DOĞRU: "Fenerbahçe, sözleşmesi bitecek olan oyuncunun satın alma
-              opsiyonunu devreye sokacak."
-     YANLIŞ: "Fenerbahçe transfer opsiyonunu kullanarak yeni oyuncu alacak."
-     (Bu, başlığın tekrarıdır; bilgi sıfır.)
-   - Grup içi hatalar olmasın: "pompala tüfekle", "polis eline geçince" gibi
-     bozuk cümleler kurma. Anadili gibi doğru Türkçe yaz.
+   - Grup içi hatalar olmasın. Anadili gibi doğru Türkçe yaz.
    - Ek bilgi çıkaramıyorsan "YETERSIZ" yaz.
 
-3. ÖZEL DURUMLAR
-   - Maç varsa saat/kanal, deprem varsa büyüklük.
-   - TRANSFER: Özette oyuncu ADI ve takım ADI geçmeli. Kesin bilgi yoksa YETERSIZ.
+3. ÖZEL DURUMLAR (bunlara özellikle dikkat et)
+   - MAÇ HABERİ: Maçın saatini ve yayın kanalını (varsa) mutlaka yaz.
+     Örnek: "Galatasaray, hazırlık maçında Pendikspor ile bugün saat 17.00'de Florya'da karşılaşacak. Maç beIN Sports'ta canlı yayınlanacak."
+   
+   - TRANSFER HABERİ: Özette oyuncu adları ve takım adları mutlaka geçmeli.
+     Liste varsa en az 2-3 isim yaz. "genç oyuncular" demek yetmez.
+     Örnek: "Fenerbahçe, Ocak transfer döneminde genç oyuncular listesine Arda Güler, Emre Mor ve Can Uzun'u ekledi."
+
+   - Deprem varsa büyüklük ve yer, kaza varsa ölü/yaralı sayısı mutlaka yazılsın.
 
 Haber Başlığı: {orijinal_baslik}
 Haber İçeriği: {metin}
@@ -180,16 +182,19 @@ SADECE şu JSON formatında cevap ver:
 
     system_msg = {
         "role": "system",
-        "content": ("Sen deneyimli bir Türk haber editörüsün. Cevabın HER ZAMAN geçerli JSON formatında olur. "
-                    "Özetin; haberi hiç bilmeyen biri tarafından anlaşılabilir olması şarttır: geçen isimlerin "
-                    "kim olduğu cümle içinde kısaca belli olur. Özet asla başlığın tekrarı olmaz, daima yeni somut "
-                    "bilgi taşır. Ana dilindeki gibi doğru, akıcı Türkçe kullanırsın. Abartılı kelimeler kullanmazsın.")
+        "content": (
+            "Sen deneyimli bir Türk haber editörüsün. Cevabın HER ZAMAN geçerli JSON formatında olur. "
+            "Özetin; haberi hiç bilmeyen biri tarafından anlaşılabilir olması şarttır: geçen isimlerin "
+            "kim olduğu cümle içinde kısaca belli olur. Özet asla başlığın tekrarı olmaz, daima yeni somut "
+            "bilgi taşır. Özellikle maç saatini/kanalını ve transfer isimlerini atlama. "
+            "Ana dilindeki gibi doğru, akıcı Türkçe kullanırsın. Abartılı kelimeler kullanmazsın."
+        )
     }
 
     for deneme in range(3):
         raw = groq_istegi_gonder(
             [system_msg, {"role": "user", "content": prompt}],
-            temperature=0.2, max_tokens=350, islem_adi=f"özet: {orijinal_baslik[:40]}"
+            temperature=0.2, max_tokens=450, islem_adi=f"özet: {orijinal_baslik[:40]}"
         )
         if raw is None:
             return orijinal_baslik, None
