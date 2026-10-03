@@ -5,12 +5,10 @@ import json
 import random
 import requests
 import feedparser
-import uuid
 from bs4 import BeautifulSoup
 from groq import Groq
 from supabase import create_client, Client
 from datetime import datetime
-from urllib.parse import urlparse, urljoin
 
 # ====================== ORTAM DEĞİŞKENLERİ ======================
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
@@ -35,8 +33,10 @@ RSS_FEEDS = [
 DEFAULT_IMAGE = "https://images.unsplash.com/photo-1504711434969-e33886168f5c?q=80&w=800"
 BURC_IMAGE = "https://images.unsplash.com/photo-1532968967656-8c4c0b0a0b0b?q=80&w=800"
 
-# MODEL LİSTESİ
+# MODEL LİSTESİ: Yukarıdan aşağı denenir, biri çalışmayınca diğerine geçer.
+# Böylece Groq bir modeli kaldırsa bile bot kendini kurtarır.
 MODEL_LIST = [
+
     "openai/gpt-oss-120b",
     "openai/gpt-oss-20b",
     "qwen/qwen3.8-27b",
@@ -49,10 +49,11 @@ HEADERS = {
 BURCLAR = ["Koç", "Boğa", "İkizler", "Yengeç", "Aslan", "Başak", "Terazi", "Akrep", "Yay", "Oğlak", "Kova", "Balık"]
 
 
+
 def groq_istegi_gonder(messages, temperature, max_tokens, islem_adi=""):
     """Tüm modelleri sırayla dener. 429 (limit) alırsa 60 sn bekleyip aynı modeli tekrar dener."""
     for model in MODEL_LIST:
-        for deneme in range(2):
+        for deneme in range(2): # her model için 2 şans (limit dolarsa bekle)
             try:
                 completion = client.chat.completions.create(
                     model=model,
@@ -70,9 +71,11 @@ def groq_istegi_gonder(messages, temperature, max_tokens, islem_adi=""):
                 else:
                     print(f" → {model} hatası ({islem_adi}): {str(e)[:120]}")
                     time.sleep(3)
-                    break
+                    break # limit dışı hata: sonraki modele geç
     print(f" → TÜM MODELLER BAŞARISIZ ({islem_adi})")
     return None
+
+
 
 
 # ====================== YARDIMCI FONKSİYONLAR ======================
@@ -98,6 +101,7 @@ def sayfa_detay_cek(url: str):
         if og and og.get("content"):
             resim_url = og["content"]
             if resim_url.startswith("/"):
+                from urllib.parse import urljoin
                 resim_url = urljoin(url, resim_url)
 
         selectors = [
@@ -128,40 +132,6 @@ def sayfa_detay_cek(url: str):
     return "", None
 
 
-def resmi_yukle(resim_url: str) -> str:
-    """Görseli indirip Supabase Storage'a yükler, public URL döner. Hotlink sorununu çözer."""
-    if not resim_url or "unsplash.com" in resim_url or "supabase.co" in resim_url:
-        return resim_url
-
-    try:
-        response = requests.get(resim_url, headers=HEADERS, timeout=15)
-        response.raise_for_status()
-
-        path = urlparse(resim_url).path
-        uzanti = path.split(".")[-1].lower() if "." in path else "jpg"
-        if uzanti not in ["jpg", "jpeg", "png", "webp", "gif"]:
-            uzanti = "jpg"
-
-        dosya_adi = f"haberler/{uuid.uuid4()}.{uzanti}"
-
-        supabase.storage.from_("haber-gorselleri").upload(
-            path=dosya_adi,
-            file=response.content,
-            file_options={
-                "content-type": response.headers.get("content-type", "image/jpeg"),
-                "upsert": "true"
-            }
-        )
-
-        public_url = supabase.storage.from_("haber-gorselleri").get_public_url(dosya_adi)
-        print(f" → Görsel Storage'a yüklendi: {dosya_adi}")
-        return public_url
-
-    except Exception as e:
-        print(f" → Görsel yüklenemedi ({resim_url[:70]}...): {e}")
-        return DEFAULT_IMAGE
-
-
 def haberi_islemden_gecir(metin: str, orijinal_baslik: str, kategori: str, yayin_tarihi: str):
     prompt = f"""
 Sen Türkiye'nin önde gelen haber sitelerinde çalışan, deneyimli bir haber editörüsün.
@@ -173,32 +143,31 @@ KATEGORİ: {kategori}
 ### KURALLAR
 
 1. BAŞLIK
-   - 8-13 kelime, akıcı ve doğal Türkçe.
+   - 8-12 kelime, akıcı ve doğal Türkçe.
    - "flaş", "bomba", "şok", "sürpriz", "son dakika" kelimelerini ASLA kullanma.
    - Her haberi soru cümlesi yapma; düz ve net anlat.
 
 2. ÖZET (en kritik kural)
-   - 28-48 kelime, tek paragraf.
+   - 18-25 kelime, tek paragraf.
    - BAĞLAM KURALI: Özeti, haberi HİÇ bilmeyen bir okuyucu için yaz.
-     İsim geçen kişi, takım veya olay ilk kez anılıyorsa, cümle içinde kısaca kim/ney olduğunu açıkla.
+     İsim geçen kişi, takım veya olay ilk kez anılıyorsa, cümle içinde
+     kısaca kim/ney olduğunu açıkla.
+     DOĞRU: "Milan'ın efsane kaptanı Baresi'nin duvar resmine yapılan saldırıyı
+              eski kaleci Zenga kınadı."
+     YANLIŞ: "Baresi'nin duvar resmine saldırıya Zenga tepki verdi."
+     (Baresi'nin kim olduğunu bilmeyen okuyucu anlayamaz.)
    - ASLA başlığın farklı söylenmiş hâlini yazma. Özet yeni, somut bilgi içersin.
-   - Anadili gibi doğru Türkçe yaz.
+     DOĞRU: "Fenerbahçe, sözleşmesi bitecek olan oyuncunun satın alma
+              opsiyonunu devreye sokacak."
+     YANLIŞ: "Fenerbahçe transfer opsiyonunu kullanarak yeni oyuncu alacak."
+     (Bu, başlığın tekrarıdır; bilgi sıfır.)
+   - Grup içi hatalar olmasın: "pompala tüfekle", "polis eline geçince" gibi
+     bozuk cümleler kurma. Anadili gibi doğru Türkçe yaz.
    - Ek bilgi çıkaramıyorsan "YETERSIZ" yaz.
 
-3. ÖZEL DURUMLAR (bunlara özellikle dikkat et)
-
-   - MAÇ / KARŞILAŞMA HABERİ (çok kritik):
-     * Maçın kesin tarihini yaz (örnek: "2 Ekim Perşembe").
-     * Saat bilgisini mutlaka ekle (örnek: "saat 20.45'te").
-     * Yayın kanalı varsa onu da belirt.
-     * Bu bilgiler kaynakta yoksa bile mümkün olduğunca çıkar.
-     Örnek doğru özet:
-     "Fenerbahçe Tarfin, EuroLeague üçüncü haftasında 2 Ekim Perşembe saat 20.45'te Ülker Spor Salonu'nda Dubai Basket'i ağırlayacak. Maç beIN Sports'tan canlı yayınlanacak."
-
-   - TRANSFER HABERİ: Özette oyuncu adları ve takım adları mutlaka geçmeli.
-     Liste varsa en az 2-3 isim yaz. "genç oyuncular" demek yetmez.
-
-   - Deprem varsa büyüklük ve yer, kaza varsa ölü/yaralı sayısı mutlaka yazılsın.
+3. ÖZEL DURUMLAR
+   - Maç varsa saat/kanal, deprem varsa büyüklük.
+   - TRANSFER: Özette oyuncu ADI ve takım ADI geçmeli. Kesin bilgi yoksa YETERSIZ.
 
 Haber Başlığı: {orijinal_baslik}
 Haber İçeriği: {metin}
@@ -212,19 +181,16 @@ SADECE şu JSON formatında cevap ver:
 
     system_msg = {
         "role": "system",
-        "content": (
-            "Sen deneyimli bir Türk haber editörüsün. Cevabın HER ZAMAN geçerli JSON formatında olur. "
-            "Özetin; haberi hiç bilmeyen biri tarafından anlaşılabilir olması şarttır. "
-            "Maç ve karşılaşma haberlerinde tarih + saat bilgisini ASLA atlama. "
-            "Özet asla başlığın tekrarı olmaz, daima yeni somut bilgi taşır. "
-            "Ana dilindeki gibi doğru, akıcı Türkçe kullanırsın. Abartılı kelimeler kullanmazsın."
-        )
+        "content": ("Sen deneyimli bir Türk haber editörüsün. Cevabın HER ZAMAN geçerli JSON formatında olur. "
+                    "Özetin; haberi hiç bilmeyen biri tarafından anlaşılabilir olması şarttır: geçen isimlerin "
+                    "kim olduğu cümle içinde kısaca belli olur. Özet asla başlığın tekrarı olmaz, daima yeni somut "
+                    "bilgi taşır. Ana dilindeki gibi doğru, akıcı Türkçe kullanırsın. Abartılı kelimeler kullanmazsın.")
     }
 
     for deneme in range(3):
         raw = groq_istegi_gonder(
             [system_msg, {"role": "user", "content": prompt}],
-            temperature=0.2, max_tokens=450, islem_adi=f"özet: {orijinal_baslik[:40]}"
+            temperature=0.2, max_tokens=350, islem_adi=f"özet: {orijinal_baslik[:40]}"
         )
         if raw is None:
             return orijinal_baslik, None
@@ -275,13 +241,14 @@ def haftalik_burc_yorumlarini_cek():
     bugun = datetime.now()
     pazartesi_mi = (bugun.weekday() == 0)
 
+    # Veritabanında burç yorumu var mı kontrol et
     burc_var_mi = False
     try:
         mevcut = supabase.table("haberler").select("id").eq("kategori", "Burç").limit(1).execute()
         burc_var_mi = len(mevcut.data) > 0
     except Exception as e:
         print(f"Burç kontrol hatası: {e}")
-        burc_var_mi = True
+        burc_var_mi = True # emin olamazsak mevcut olanı korumak için
 
     if not pazartesi_mi and burc_var_mi:
         print("Burç yorumları zaten mevcut, atlandı.")
@@ -365,13 +332,9 @@ def main():
             if not resim_url and sayfa_resmi:
                 resim_url = sayfa_resmi
                 print(" → Görsel sayfadaki og:image'den alındı")
-
             if not resim_url:
                 resim_url = DEFAULT_IMAGE
                 print(" → Görsel bulunamadı, yedek kullanıldı")
-            else:
-                # Hotlink sorununu çözmek için Storage'a yükle
-                resim_url = resmi_yukle(resim_url)
 
             yayin_tarihi = entry.get("published", entry.get("updated", "Tarih Belirtilmedi"))
 
@@ -390,8 +353,8 @@ def main():
                 icerik, orijinal_baslik, kategori, yayin_tarihi
             )
 
-            if not ozet or "YETERSIZ" in ozet.upper() or len(ozet.strip()) < 20:
-                print(f" → Atlandı (Yetersiz): {orijinal_baslik[:60]}")
+            if not ozet or "YETERSIZ" in ozet.upper() or len(ozet.strip()) < 2:
+                print(f" → Atlandı (Yetersiz / Yerel): {orijinal_baslik[:60]}")
                 continue
 
             try:
@@ -413,7 +376,7 @@ def main():
             try:
                 supabase.table("haberler").insert(data).execute()
                 print(f" ✓ Eklendi → Başlık: {yeni_baslik}")
-                print(f"   Özet : {ozet}")
+                print(f" Özet : {ozet}")
             except Exception as e:
                 print(f" → Veritabanı ekleme hatası: {e}")
 
